@@ -12,13 +12,15 @@
   export type TerminalStatus = "connecting" | "connected" | "closed";
 
   let {
-    categoryPath,
+    categoryPath = [],
     hostName,
+    local = false,
     onStatusChange,
     onSessionId,
   }: {
-    categoryPath: string[];
+    categoryPath?: string[];
     hostName: string;
+    local?: boolean;
     onStatusChange?: (status: TerminalStatus) => void;
     onSessionId?: (id: string) => void;
   } = $props();
@@ -96,12 +98,14 @@
       }),
     );
 
-    const res = await TerminalService.Connect({
-      categoryPath,
-      name: hostName,
-      cols: term.cols,
-      rows: term.rows,
-    });
+    const res = local
+      ? await TerminalService.ConnectLocal({ cols: term.cols, rows: term.rows })
+      : await TerminalService.Connect({
+          categoryPath,
+          name: hostName,
+          cols: term.cols,
+          rows: term.rows,
+        });
     sessionId = res.sessionId;
     onSessionId?.(res.sessionId);
   }
@@ -124,7 +128,7 @@
   <div class="terminal-container" bind:this={container}></div>
   {#if status === "connecting"}
     <div class="status-overlay">
-      <span class="muted">{hostName} bağlanıyor…</span>
+      <span class="muted">{local ? "Terminal açılıyor…" : `${hostName} bağlanıyor…`}</span>
     </div>
   {:else if status === "closed"}
     <div class="status-overlay {closeError ? 'error' : ''}">
@@ -155,6 +159,15 @@
   .terminal-container :global(.xterm) {
     height: 100%;
   }
+  /* xterm.css hardcodes .xterm-viewport's background to solid #000 (for
+     opaque scrollbar rendering on macOS) - that wins over the Terminal's
+     `theme.background: "#00000000"` option since the viewport is a plain
+     DOM layer, not something xterm's theme touches. Overriding it here is
+     what actually lets the app's translucent/blurred background show
+     through behind the terminal. */
+  .terminal-container :global(.xterm-viewport) {
+    background-color: transparent !important;
+  }
   .status-overlay {
     position: absolute;
     top: 10px;
@@ -165,8 +178,8 @@
     border-radius: var(--radius-sm);
     padding: 4px 14px;
     font-size: 12px;
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(var(--glass-blur, 16px));
+    -webkit-backdrop-filter: blur(var(--glass-blur, 16px));
     z-index: 1;
   }
   .status-overlay.error {

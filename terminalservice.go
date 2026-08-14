@@ -113,6 +113,21 @@ func (t *TerminalService) Connect(req ConnectRequest) (ConnectResponse, error) {
 	return ConnectResponse{SessionID: sessionID, HostName: host.Name}, nil
 }
 
+// ConnectLocalRequest carries just the initial PTY size - a local terminal
+// tab has no host to resolve.
+type ConnectLocalRequest struct {
+	Cols int `json:"cols"`
+	Rows int `json:"rows"`
+}
+
+// ConnectLocal opens a plain local shell tab (bash/zsh, whatever $SHELL is)
+// on the machine go-ssh-ui itself runs on - no SSH involved. Same
+// fire-and-report-via-events handshake as Connect.
+func (t *TerminalService) ConnectLocal(req ConnectLocalRequest) (ConnectResponse, error) {
+	sessionID := t.mgr.ConnectLocal(req.Cols, req.Rows)
+	return ConnectResponse{SessionID: sessionID, HostName: "Terminal"}, nil
+}
+
 // Write forwards keystrokes/pasted text from the frontend terminal to the
 // remote shell.
 func (t *TerminalService) Write(sessionID, data string) error {

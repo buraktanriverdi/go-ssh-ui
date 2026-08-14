@@ -87,35 +87,48 @@ func NewManager(passwords PasswordResolver, hosts HostFinder, emitPrompt func(Pr
 // to return the way it'd wait for a quick RPC.
 func (m *Manager) Connect(host config.Host, cols, rows int) string {
 	sessionID := uuid.NewString()
-
-	go func() {
-		var (
-			sess Session
-			err  error
-		)
+	go m.finishConnect(sessionID, func() (Session, error) {
 		if host.HostAddr != "" {
-			sess, err = m.connectNative(sessionID, host, cols, rows)
-		} else {
-			sess, err = m.connectSubprocess(sessionID, host, cols, rows)
+			return m.connectNative(sessionID, host, cols, rows)
 		}
-		if err != nil {
-			m.broker.CancelSession(sessionID)
-			if m.onClosed != nil {
-				m.onClosed(sessionID, err)
-			}
-			return
-		}
-
-		m.mu.Lock()
-		m.sessions[sessionID] = sess
-		m.mu.Unlock()
-
-		if m.onConnected != nil {
-			m.onConnected(sessionID)
-		}
-	}()
-
+		return m.connectSubprocess(sessionID, host, cols, rows)
+	})
 	return sessionID
+}
+
+// ConnectLocal is Connect's counterpart for a plain local shell tab - no
+// host, no SSH, just $SHELL under a PTY on the machine go-ssh-ui itself runs
+// on. It follows the same immediate-session-ID / background-start /
+// event-driven handshake as Connect so the frontend's TerminalPane can treat
+// both identically.
+func (m *Manager) ConnectLocal(cols, rows int) string {
+	sessionID := uuid.NewString()
+	go m.finishConnect(sessionID, func() (Session, error) {
+		return m.connectLocal(sessionID, cols, rows)
+	})
+	return sessionID
+}
+
+// finishConnect runs dial in the background and reports its outcome through
+// the manager's callbacks - shared by Connect and ConnectLocal, which only
+// differ in how they build the Session.
+func (m *Manager) finishConnect(sessionID string, dial func() (Session, error)) {
+	sess, err := dial()
+	if err != nil {
+		m.broker.CancelSession(sessionID)
+		if m.onClosed != nil {
+			m.onClosed(sessionID, err)
+		}
+		return
+	}
+
+	m.mu.Lock()
+	m.sessions[sessionID] = sess
+	m.mu.Unlock()
+
+	if m.onConnected != nil {
+		m.onConnected(sessionID)
+	}
 }
 
 func (m *Manager) session(id string) (Session, error) {

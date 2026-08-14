@@ -6,18 +6,22 @@
    floating surfaces (dialogs, content list boxes) get the "card" treatment. */
 
 :root {
-  /* System accent - matches macOS's default "Blue" accent color. */
+  /* System accent - matches macOS's default "Blue" accent color by default.
+     Overridable from Settings (frontend/src/lib/appearance.svelte.ts sets
+     these two as inline styles on <html>, so this :root value is only the
+     first-paint default before that script runs). */
   --accent: #007aff;
   --accent-contrast: #ffffff;
   --danger: #ff3b30;
 
   /* The window itself (Mac.Backdrop = MacBackdropTranslucent in main.go)
-     contributes a blurred vibrancy layer, but relying on that alone let the
-     desktop wallpaper (and whatever else was behind the window) read through
-     clearly - not the frosted, muted look real macOS chrome has. This base
-     tint is intentionally high-opacity: it does almost all of the "solid
-     background" work itself, with the OS blur only adding a soft edge. */
-  --app-bg: rgba(30, 30, 34, 0.96);
+     contributes a blurred vibrancy layer. --app-bg-alpha controls how much
+     of that shows through vs. the flat tint below - also Settings-driven
+     (default 0.96 keeps the original "mostly solid, OS blur just softens
+     the edge" look; lower values let more of the blurred backdrop through). */
+  --app-bg-rgb: 30, 30, 34;
+  --app-bg-alpha: 0.96;
+  --app-bg: rgba(var(--app-bg-rgb), var(--app-bg-alpha));
 
   /* Chrome (sidebar/toolbar): a faint tint over --app-bg, no card. */
   --chrome-bg: rgba(255, 255, 255, 0.03);
@@ -29,23 +33,35 @@
   --surface-border: rgba(255, 255, 255, 0.09);
   --surface-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
 
+  /* Blur radius for .glass-panel (and the terminal's status pill) - also
+     Settings-driven. */
+  --glass-blur: 24px;
+
   --text: rgba(255, 255, 255, 0.92);
   --text-muted: rgba(255, 255, 255, 0.55);
   --text-faint: rgba(255, 255, 255, 0.35);
 
   --row-hover: rgba(255, 255, 255, 0.07);
   --row-selected: var(--accent);
-  --row-selected-text: #ffffff;
+  --row-selected-text: var(--accent-contrast);
 
   --radius: 9px;
   --radius-sm: 6px;
   --sidebar-width: 200px;
   --toolbar-height: 52px;
+
+  /* Tells the engine to draw *native* controls (select dropdown popups,
+     the jump-host multi-select listbox, scrollbars, checkboxes) with dark
+     system colors instead of assuming a light UI. Without this, WebKit's
+     native <select> popup ignores our CSS entirely and can render its own
+     (light-mode) text color on top of this app's dark surfaces - the
+     "black text unreadable in Settings/host-config dropdowns" bug. */
+  color-scheme: dark;
 }
 
 @media (prefers-color-scheme: light) {
   :root {
-    --app-bg: rgba(246, 246, 248, 0.96);
+    --app-bg-rgb: 246, 246, 248;
 
     --chrome-bg: rgba(0, 0, 0, 0.02);
     --chrome-border: rgba(0, 0, 0, 0.1);
@@ -60,6 +76,8 @@
     --text-faint: rgba(0, 0, 0, 0.35);
 
     --row-hover: rgba(0, 0, 0, 0.045);
+
+    color-scheme: light;
   }
 }
 
@@ -183,6 +201,25 @@ input[type="checkbox"] {
   width: auto;
 }
 
+/* Themes native form-control rendering (checkboxes, radios, range sliders)
+   with the current accent color instead of always showing the browser's
+   fixed default blue, so the "renk tonu" setting reaches these too. */
+input[type="radio"],
+input[type="checkbox"],
+input[type="range"] {
+  accent-color: var(--accent);
+}
+
+/* Explicit contrast for the *inline* multi-select listbox (HostForm's jump
+   host chain) - that one is laid out like normal content, so unlike a
+   closed <select>'s native popup, it does honor these. Combined with the
+   :root `color-scheme` above, this keeps option text readable in both the
+   inline listbox and (where the engine allows it) the popup case. */
+select option {
+  color: var(--text);
+  background: var(--app-bg);
+}
+
 textarea {
   resize: vertical;
 }
@@ -220,8 +257,8 @@ label {
 /* Floating surfaces: dialogs and content boxes. */
 .glass-panel {
   background: var(--surface-bg);
-  backdrop-filter: blur(24px) saturate(1.4);
-  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
   border: 1px solid var(--surface-border);
   border-radius: var(--radius);
 }
@@ -286,7 +323,8 @@ dialog::backdrop {
   color: var(--row-selected-text);
 }
 .list-row.selected .muted {
-  color: rgba(255, 255, 255, 0.75);
+  color: inherit;
+  opacity: 0.75;
 }
 
 .error-text {

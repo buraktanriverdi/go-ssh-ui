@@ -1,11 +1,12 @@
 <script lang="ts">
   import { PasswordService, TerminalService } from "../bindings/go-ssh-ui";
-  import { Server, KeyRound, Lock, Menu, Home, X, Megaphone, FolderOpen } from "@lucide/svelte";
+  import { Server, KeyRound, Lock, Menu, Home, X, Megaphone, FolderOpen, Settings, SquareTerminal, Plus } from "@lucide/svelte";
   import { SvelteSet } from "svelte/reactivity";
   import type { Host } from "../bindings/go-ssh/config/models";
   import UnlockScreen from "./views/UnlockScreen.svelte";
   import HostsView from "./views/HostsView.svelte";
   import PasswordsView from "./views/PasswordsView.svelte";
+  import SettingsView from "./views/SettingsView.svelte";
   import TerminalPane, { type TerminalStatus } from "./components/TerminalPane.svelte";
   import FilesPane from "./components/FilesPane.svelte";
 
@@ -15,7 +16,7 @@
   // additional real tab next to it; switching tabs never disconnects
   // anything, since every TerminalPane stays mounted (just hidden) once
   // opened - only closing a tab's × actually tears down its session.
-  let sidebarNav: "hosts" | "passwords" = $state("hosts");
+  let sidebarNav: "hosts" | "passwords" | "settings" = $state("hosts");
   let sidebarCollapsed = $state(false);
 
   type TerminalTab = {
@@ -29,6 +30,12 @@
 
   type FileTab = { id: string; categoryPath: string[]; host: Host };
   let fileTabs: FileTab[] = $state([]);
+
+  // A local tab is a plain bash/zsh shell on the machine go-ssh-ui itself
+  // runs on - no host, no SSH. Kept in its own array (rather than folded
+  // into TerminalTab) since it has no Host/categoryPath to carry.
+  type LocalTab = { id: string; status: TerminalStatus; sessionId?: string };
+  let localTabs: LocalTab[] = $state([]);
 
   let activeTabId: string = $state("home");
 
@@ -50,7 +57,7 @@
     unlocked = false;
   }
 
-  function selectNav(nav: "hosts" | "passwords") {
+  function selectNav(nav: "hosts" | "passwords" | "settings") {
     sidebarNav = nav;
     activeTabId = "home";
   }
@@ -60,6 +67,12 @@
     terminalTabs = [...terminalTabs, { id, categoryPath, host, status: "connecting" }];
     activeTabId = id;
     if (broadcastOpen) broadcastTargets.add(id);
+  }
+
+  function openLocalTerminal() {
+    const id = crypto.randomUUID();
+    localTabs = [...localTabs, { id, status: "connecting" }];
+    activeTabId = id;
   }
 
   function openFiles(categoryPath: string[], host: Host) {
@@ -81,9 +94,18 @@
     terminalTabs = terminalTabs.map((t) => (t.id === id ? { ...t, sessionId } : t));
   }
 
+  function setLocalTabStatus(id: string, status: TerminalStatus) {
+    localTabs = localTabs.map((t) => (t.id === id ? { ...t, status } : t));
+  }
+
+  function setLocalTabSessionId(id: string, sessionId: string) {
+    localTabs = localTabs.map((t) => (t.id === id ? { ...t, sessionId } : t));
+  }
+
   function closeTab(id: string) {
     terminalTabs = terminalTabs.filter((t) => t.id !== id);
     fileTabs = fileTabs.filter((t) => t.id !== id);
+    localTabs = localTabs.filter((t) => t.id !== id);
     broadcastTargets.delete(id);
     if (activeTabId === id) activeTabId = "home";
   }
@@ -150,7 +172,21 @@
               </button>
             </div>
           {/each}
+          {#each localTabs as tab (tab.id)}
+            <div class="tab {activeTabId === tab.id ? 'active' : ''}">
+              <button type="button" class="tab-select" onclick={() => (activeTabId = tab.id)}>
+                <SquareTerminal size={12} strokeWidth={2} />
+                <span>Terminal</span>
+              </button>
+              <button type="button" class="icon-btn tab-close" onclick={() => closeTab(tab.id)} title="Kapat">
+                <X size={12} strokeWidth={2} />
+              </button>
+            </div>
+          {/each}
         </div>
+        <button type="button" class="icon-btn new-terminal-btn" onclick={openLocalTerminal} title="Yeni terminal (bash/zsh)">
+          <Plus size={15} strokeWidth={2} />
+        </button>
         {#if terminalTabs.length > 0}
           <button
             type="button"
@@ -197,6 +233,14 @@
           </button>
         </div>
         <div class="spacer"></div>
+        <button
+          type="button"
+          class="list-row nav-row {sidebarNav === 'settings' && activeTabId === 'home' ? 'selected' : ''}"
+          onclick={() => selectNav("settings")}
+        >
+          <Settings size={15} strokeWidth={2} />
+          <span>Ayarlar</span>
+        </button>
         <button type="button" class="list-row nav-row" onclick={lock}>
           <Lock size={15} strokeWidth={2} />
           <span>Kilitle</span>
@@ -208,8 +252,10 @@
       <div class="tab-pane" style:display={activeTabId === "home" ? "block" : "none"}>
         {#if sidebarNav === "hosts"}
           <HostsView onConnectHost={connectHost} onOpenFiles={openFiles} />
-        {:else}
+        {:else if sidebarNav === "passwords"}
           <PasswordsView />
+        {:else}
+          <SettingsView />
         {/if}
       </div>
       {#each terminalTabs as tab (tab.id)}
@@ -225,6 +271,16 @@
       {#each fileTabs as tab (tab.id)}
         <div class="tab-pane" style:display={activeTabId === tab.id ? "block" : "none"}>
           <FilesPane categoryPath={tab.categoryPath} hostName={tab.host.name} />
+        </div>
+      {/each}
+      {#each localTabs as tab (tab.id)}
+        <div class="tab-pane" style:display={activeTabId === tab.id ? "block" : "none"}>
+          <TerminalPane
+            local
+            hostName="Terminal"
+            onStatusChange={(status) => setLocalTabStatus(tab.id, status)}
+            onSessionId={(sessionId) => setLocalTabSessionId(tab.id, sessionId)}
+          />
         </div>
       {/each}
     </main>
@@ -302,6 +358,10 @@
     flex: 1;
     min-width: 0;
     overflow-x: auto;
+    -webkit-app-region: no-drag;
+  }
+  .new-terminal-btn {
+    flex-shrink: 0;
     -webkit-app-region: no-drag;
   }
   .broadcast-toggle {
