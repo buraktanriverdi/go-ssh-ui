@@ -1,17 +1,58 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { Palette, RotateCcw, Check } from "@lucide/svelte";
+  import { AppearanceService } from "../../bindings/go-ssh-ui";
   import { appearance, ACCENT_PRESETS, setOpacity, setBlur, setAccent, resetAppearance } from "../lib/appearance.svelte";
 
   function normalized(hex: string) {
     return hex.trim().toLowerCase();
+  }
+
+  // Unlike opacity/blur/accent above (plain CSS vars, applied live), this
+  // one preference lives on the Go side and only takes effect on next
+  // launch - see AppearanceService/windowprefs.go for why: Wails decides a
+  // window's backdrop material at creation time, with no runtime setter.
+  const BACKDROP_OPTIONS: { value: string; label: string; hint: string }[] = [
+    { value: "translucent", label: "Bulanık (vibrancy)", hint: "Klasik frosted-glass macOS görünümü." },
+    {
+      value: "liquidGlass",
+      label: "Liquid Glass",
+      hint: "Apple'ın yeni camsı efekti (macOS 15+; eski sürümlerde otomatik Bulanık'a döner).",
+    },
+    { value: "transparent", label: "Şeffaf (bulanıksız)", hint: "Aynı derecede saydam, ama keskin - hiç bulanıklık yok." },
+  ];
+
+  let backdrop = $state("translucent");
+  let backdropSaved = $state(false);
+  let savedTimer: ReturnType<typeof setTimeout> | undefined;
+
+  onMount(async () => {
+    try {
+      backdrop = await AppearanceService.GetBackdrop();
+    } catch {
+      // Leave the "translucent" default if the call fails for any reason.
+    }
+  });
+
+  async function setBackdrop(value: string) {
+    const previous = backdrop;
+    backdrop = value;
+    try {
+      await AppearanceService.SetBackdrop(value);
+      backdropSaved = true;
+      clearTimeout(savedTimer);
+      savedTimer = setTimeout(() => (backdropSaved = false), 3000);
+    } catch {
+      backdrop = previous;
+    }
   }
 </script>
 
 <div class="settings-view">
   <h2>Ayarlar</h2>
   <p class="muted section-intro">
-    Pencerenin saydamlığını, arka plan bulanıklığını ve renk tonunu buradan ayarlayabilirsin. Değişiklikler anında uygulanır ve
-    bir sonraki açılışta hatırlanır.
+    Pencerenin saydamlığını, bulanıklığını ve renk tonunu buradan ayarlayabilirsin. Saydamlık/bulanıklık/renk anında
+    uygulanır; native pencere bulanıklığı bir sonraki açılışta devreye girer.
   </p>
 
   <div class="glass-panel settings-card">
@@ -49,11 +90,31 @@
         oninput={(e) => setBlur(Number(e.currentTarget.value))}
       />
       <p class="muted hint">
-        0, diyalog ve panellerdeki ek bulanıklığı tamamen kapatır (en keskin görünüm). Pencerenin arkasındaki hafif
-        native macOS bulanıklığı (vibrancy) sabittir; bu sürgü onu değiştirmez, ama saydamlığı azaltıp opaklığı
-        yükselttikçe daha az fark edilir.
+        0, diyalog ve panellerdeki ek bulanıklığı tamamen kapatır (en keskin görünüm). Pencerenin tüm arkaplanını
+        etkileyen native bulanıklık ayrı bir ayar - aşağıda.
       </p>
     </div>
+  </div>
+
+  <div class="glass-panel settings-card">
+    <h3>Pencere arkaplanı (native)</h3>
+    <div class="backdrop-options">
+      {#each BACKDROP_OPTIONS as opt (opt.value)}
+        <label class="backdrop-option {backdrop === opt.value ? 'selected' : ''}">
+          <input type="radio" name="backdrop" value={opt.value} checked={backdrop === opt.value} onchange={() => setBackdrop(opt.value)} />
+          <span class="backdrop-option-text">
+            <span class="backdrop-option-label">{opt.label}</span>
+            <span class="muted backdrop-option-hint">{opt.hint}</span>
+          </span>
+        </label>
+      {/each}
+    </div>
+    <p class="muted hint">
+      Yukarıdaki "Panel bulanıklığı"ndan farklı: diyalog kartları değil, pencerenin arkasında görünen
+      masaüstünü/diğer pencereleri etkileyen katman bu - hepsi üstteki saydamlık ayarına uyar.
+    </p>
+    <p class="muted hint">Değişikliğin görünmesi için uygulamayı kapatıp yeniden açman gerekiyor.</p>
+    {#if backdropSaved}<p class="saved-hint">Kaydedildi - bir sonraki açılışta uygulanacak.</p>{/if}
   </div>
 
   <div class="glass-panel settings-card">
@@ -113,6 +174,47 @@
   .hint {
     font-size: 11px;
     margin: 6px 0 0;
+  }
+  .backdrop-options {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .backdrop-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 6px 8px;
+    margin: 0 -8px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+  }
+  .backdrop-option:hover {
+    background: var(--row-hover);
+  }
+  .backdrop-option input {
+    width: auto;
+    margin-top: 2px;
+  }
+  .backdrop-option-text {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+  .backdrop-option-label {
+    /* Global `label { color: var(--text-muted) }` would otherwise leave
+       this looking as de-emphasized as the hint line below it. */
+    color: var(--text);
+    font-size: 12.5px;
+    font-weight: 500;
+  }
+  .backdrop-option-hint {
+    font-size: 11px;
+  }
+  .saved-hint {
+    font-size: 11px;
+    margin: 6px 0 0;
+    color: var(--accent);
   }
   .accent-grid {
     display: flex;

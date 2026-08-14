@@ -170,11 +170,11 @@ func (s *HostService) DeleteCategory(req DeleteCategoryRequest) (*config.Config,
 	if len(req.CategoryPath) == 0 {
 		return nil, fmt.Errorf("category path is required")
 	}
-	sourceFile, err := configx.ValidateFilePath(req.SourceFile)
-	if err != nil {
-		return nil, err
-	}
-	if err := config.RemoveCategoryFromFile(sourceFile, req.CategoryPath); err != nil {
+	// Deletes from every file that defines this category, not just
+	// req.SourceFile - MergeCategoriesByName can fold the same root category
+	// in from several conf.d files into one tree node, and a single-file
+	// removal left the other files' copies reappearing on reload.
+	if err := config.RemoveCategoryEverywhere(req.CategoryPath); err != nil {
 		return nil, err
 	}
 	if err := s.reloadLocked(); err != nil {

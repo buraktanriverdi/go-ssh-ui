@@ -42,6 +42,11 @@ func main() {
 	terminalService := NewTerminalService(hostService, sshManager)
 	fileService := NewFileService(hostService, sshManager)
 
+	// Read before the window is created - see windowprefs.go for why this
+	// one preference can't just live in the webview's localStorage like the
+	// rest of Settings.
+	winPrefs := loadWindowPrefs()
+
 	app := application.New(application.Options{
 		Name:        "go-ssh-ui",
 		Description: "Masaüstü SSH host yöneticisi ve terminal istemcisi",
@@ -51,6 +56,7 @@ func main() {
 			application.NewService(passwordService),
 			application.NewService(terminalService),
 			application.NewService(fileService),
+			application.NewService(&AppearanceService{}),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
@@ -61,6 +67,21 @@ func main() {
 	})
 
 	application.RegisterEvent[FilesDroppedEvent]("files:dropped")
+
+	// 'Translucent' gives the frosted/blurred macOS vibrancy look;
+	// 'Transparent' is just as see-through (the CSS side's --app-bg-alpha
+	// still controls how much shows through) but crisp, with no blur at
+	// all; 'LiquidGlass' is Apple's macOS 15+ material (Wails falls back to
+	// Translucent by itself on older macOS). The Ayarlar picker backed by
+	// AppearanceService chooses between the three for the *next* launch,
+	// since Wails has no runtime setter for a window's backdrop material.
+	backdrop := application.MacBackdropTranslucent
+	switch winPrefs.Backdrop {
+	case BackdropTransparent:
+		backdrop = application.MacBackdropTransparent
+	case BackdropLiquidGlass:
+		backdrop = application.MacBackdropLiquidGlass
+	}
 
 	// Create a new window with the necessary options.
 	// 'Mac' options give it the translucent, inset-title-bar "liquid glass"
@@ -75,8 +96,16 @@ func main() {
 		EnableFileDrop: true,
 		Mac: application.MacWindow{
 			InvisibleTitleBarHeight: 50,
-			Backdrop:                application.MacBackdropTranslucent,
+			Backdrop:                backdrop,
 			TitleBar:                application.MacTitleBarHiddenInset,
+			// Only consulted when Backdrop is MacBackdropLiquidGlass.
+			// Automatic/Automatic lets AppKit pick light-vs-dark glass and
+			// its underlying material itself, matching how the rest of
+			// this app's theming already just follows the system appearance.
+			LiquidGlass: application.MacLiquidGlass{
+				Style:    application.LiquidGlassStyleAutomatic,
+				Material: application.NSVisualEffectMaterialAuto,
+			},
 		},
 		BackgroundColour: application.NewRGB(6, 7, 15),
 		URL:              "/",
