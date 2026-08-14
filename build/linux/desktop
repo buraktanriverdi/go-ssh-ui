@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Name=go-ssh-ui
+Comment=Masaustu SSH host yoneticisi ve terminal istemcisi
+# The Exec line includes %u to pass the URL to the application
+Exec=/usr/local/bin/go-ssh-ui %u
+Terminal=false
+Type=Application
+Icon=go-ssh-ui
+Categories=Utility;
+StartupWMClass=go-ssh-ui
+
+ 

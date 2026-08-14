@@ -1,0 +1,305 @@
+/* Native macOS "liquid glass" design tokens. The native window already gives
+   us a blurred macOS backdrop (Mac.Backdrop = MacBackdropTranslucent in
+   main.go); everything here stays translucent so that backdrop keeps showing
+   through. Chrome (sidebar/toolbar) stays flush against the window like a
+   real macOS source-list app (Mail, Notes, System Settings) - only genuine
+   floating surfaces (dialogs, content list boxes) get the "card" treatment. */
+
+:root {
+  /* System accent - matches macOS's default "Blue" accent color. */
+  --accent: #007aff;
+  --accent-contrast: #ffffff;
+  --danger: #ff3b30;
+
+  /* The window itself (Mac.Backdrop = MacBackdropTranslucent in main.go)
+     contributes a blurred vibrancy layer, but relying on that alone let the
+     desktop wallpaper (and whatever else was behind the window) read through
+     clearly - not the frosted, muted look real macOS chrome has. This base
+     tint is intentionally high-opacity: it does almost all of the "solid
+     background" work itself, with the OS blur only adding a soft edge. */
+  --app-bg: rgba(30, 30, 34, 0.96);
+
+  /* Chrome (sidebar/toolbar): a faint tint over --app-bg, no card. */
+  --chrome-bg: rgba(255, 255, 255, 0.03);
+  --chrome-border: rgba(255, 255, 255, 0.08);
+
+  /* Content surfaces (dialogs, list boxes): a real frosted card. */
+  --surface-bg: rgba(255, 255, 255, 0.06);
+  --surface-bg-strong: rgba(0, 0, 0, 0.22);
+  --surface-border: rgba(255, 255, 255, 0.09);
+  --surface-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+
+  --text: rgba(255, 255, 255, 0.92);
+  --text-muted: rgba(255, 255, 255, 0.55);
+  --text-faint: rgba(255, 255, 255, 0.35);
+
+  --row-hover: rgba(255, 255, 255, 0.07);
+  --row-selected: var(--accent);
+  --row-selected-text: #ffffff;
+
+  --radius: 9px;
+  --radius-sm: 6px;
+  --sidebar-width: 200px;
+  --toolbar-height: 52px;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --app-bg: rgba(246, 246, 248, 0.96);
+
+    --chrome-bg: rgba(0, 0, 0, 0.02);
+    --chrome-border: rgba(0, 0, 0, 0.1);
+
+    --surface-bg: rgba(255, 255, 255, 0.65);
+    --surface-bg-strong: rgba(255, 255, 255, 0.9);
+    --surface-border: rgba(0, 0, 0, 0.08);
+    --surface-shadow: 0 12px 32px rgba(0, 0, 0, 0.14);
+
+    --text: rgba(0, 0, 0, 0.85);
+    --text-muted: rgba(0, 0, 0, 0.5);
+    --text-faint: rgba(0, 0, 0, 0.35);
+
+    --row-hover: rgba(0, 0, 0, 0.045);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--app-bg);
+  color: var(--text);
+  font: 13px/1.35 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  user-select: none;
+}
+
+input,
+textarea {
+  user-select: text;
+}
+
+#app {
+  height: 100%;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0 0 4px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+h2 {
+  font-size: 15px;
+}
+h3 {
+  font-size: 14px;
+}
+
+button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--surface-border);
+  background: var(--surface-bg);
+  padding: 5px 12px;
+  transition: background-color 0.1s ease;
+}
+
+button:hover {
+  background: var(--row-hover);
+}
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+  font-weight: 500;
+}
+
+button.primary:hover {
+  filter: brightness(1.08);
+}
+
+button.danger {
+  color: var(--danger);
+}
+
+button.ghost {
+  background: transparent;
+  border-color: transparent;
+}
+
+button.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  background: transparent;
+  border-color: transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+}
+button.icon-btn:hover {
+  background: var(--row-hover);
+  color: var(--text);
+}
+button.icon-btn.danger:hover {
+  color: var(--danger);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+  background: var(--surface-bg-strong);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  width: 100%;
+}
+
+input[type="radio"],
+input[type="checkbox"] {
+  width: auto;
+}
+
+textarea {
+  resize: vertical;
+}
+
+label {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.field {
+  margin-bottom: 12px;
+}
+
+/* Flush chrome: sidebar + toolbar. No card, no margin - sits directly on the
+   window's native vibrancy like Mail.app/System Settings. */
+.chrome {
+  background: var(--chrome-bg);
+}
+.chrome-border-right {
+  border-right: 1px solid var(--chrome-border);
+}
+.chrome-border-left {
+  border-left: 1px solid var(--chrome-border);
+}
+.chrome-border-bottom {
+  border-bottom: 1px solid var(--chrome-border);
+}
+.chrome-border-top {
+  border-top: 1px solid var(--chrome-border);
+}
+
+/* Floating surfaces: dialogs and content boxes. */
+.glass-panel {
+  background: var(--surface-bg);
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius);
+}
+
+dialog.glass-panel {
+  box-shadow: var(--surface-shadow);
+  padding: 20px;
+  width: min(480px, 92vw);
+  max-height: 82vh;
+  overflow-y: auto;
+}
+
+dialog::backdrop {
+  background: rgba(0, 0, 0, 0.28);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.row.between {
+  justify-content: space-between;
+}
+
+.row.end {
+  justify-content: flex-end;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.section-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+  padding: 0 10px;
+  margin: 14px 0 4px;
+}
+.section-label:first-child {
+  margin-top: 4px;
+}
+
+/* A single selectable row in a native list/sidebar. */
+.list-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border-radius: var(--radius-sm);
+  color: inherit;
+}
+.list-row:hover {
+  background: var(--row-hover);
+}
+.list-row.selected {
+  background: var(--row-selected);
+  color: var(--row-selected-text);
+}
+.list-row.selected .muted {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.error-text {
+  color: var(--danger);
+  font-size: 12px;
+}
+
+.mono {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+hr {
+  border: none;
+  border-top: 1px solid var(--surface-border);
+  margin: 12px 0;
+}
