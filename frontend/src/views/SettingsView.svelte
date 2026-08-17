@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { onMount } from "svelte";
-  import { Palette, RotateCcw, Check } from "@lucide/svelte";
-  import { AppearanceService } from "../../bindings/go-ssh-ui";
+  import { onMount, onDestroy } from "svelte";
+  import { Palette, RotateCcw, Check, KeyRound, PlayCircle } from "@lucide/svelte";
+  import { AppearanceService, HotkeyWindowService } from "../../bindings/go-ssh-ui";
+  import { WindowBackdrop, type HotkeyWindowSettings } from "../../bindings/go-ssh-ui";
   import { appearance, ACCENT_PRESETS, setOpacity, setBlur, setAccent, resetAppearance } from "../lib/appearance.svelte";
 
   function normalized(hex: string) {
@@ -9,9 +10,12 @@
   }
 
   // Unlike opacity/blur/accent above (plain CSS vars, applied live), this
-  // one preference lives on the Go side and only takes effect on next
-  // launch - see AppearanceService/windowprefs.go for why: Wails decides a
-  // window's backdrop material at creation time, with no runtime setter.
+  // preference lives on the Go side and only takes effect on next launch -
+  // see AppearanceService/windowprefs.go for why: Wails decides a window's
+  // backdrop material at creation time, with no runtime setter. Shared by
+  // both the main window's picker below and the hotkey window's (further
+  // down) - same three choices, same restart caveat, different persisted
+  // setting underneath (AppearanceService vs. HotkeyWindowService).
   const BACKDROP_OPTIONS: { value: string; label: string; hint: string }[] = [
     { value: "translucent", label: "Bulanık (vibrancy)", hint: "Klasik frosted-glass macOS görünümü." },
     {
@@ -46,6 +50,146 @@
       backdrop = previous;
     }
   }
+
+  // --- Hotkey Penceresi (iTerm-style hotkey window) ---
+  // Shortcut/color/opacity apply live with no restart - see
+  // HotkeyWindowService.SetSettings. Backdrop is the one exception, same
+  // "next launch" caveat as the main window's picker above (Wails only
+  // picks a window's native material at creation time).
+  let hotkey: HotkeyWindowSettings = $state({
+    enabled: false,
+    shortcut: "",
+    bgColor: "#14141a",
+    opacity: 90,
+    backdrop: WindowBackdrop.BackdropTranslucent,
+    height: 420,
+  });
+  let hotkeySaving = $state(false);
+  let hotkeyError: string | null = $state(null);
+  let hotkeySaved = $state(false);
+  let hotkeySavedTimer: ReturnType<typeof setTimeout> | undefined;
+  let hotkeyCapturing = $state(false);
+
+  onMount(async () => {
+    try {
+      hotkey = await HotkeyWindowService.GetSettings();
+    } catch {
+      // Leave the defaults above if the call fails for any reason.
+    }
+  });
+
+  async function saveHotkey(next: HotkeyWindowSettings) {
+    const previous = hotkey;
+    hotkey = next;
+    hotkeySaving = true;
+    hotkeyError = null;
+    try {
+      await HotkeyWindowService.SetSettings(next);
+      hotkeySaved = true;
+      clearTimeout(hotkeySavedTimer);
+      hotkeySavedTimer = setTimeout(() => (hotkeySaved = false), 3000);
+    } catch (e) {
+      hotkey = previous;
+      hotkeyError = e instanceof Error ? e.message : String(e);
+    } finally {
+      hotkeySaving = false;
+    }
+  }
+
+  function toggleHotkeyEnabled() {
+    saveHotkey({ ...hotkey, enabled: !hotkey.enabled });
+  }
+
+  function setHotkeyColor(hex: string) {
+    saveHotkey({ ...hotkey, bgColor: hex });
+  }
+
+  function setHotkeyOpacity(v: number) {
+    saveHotkey({ ...hotkey, opacity: v });
+  }
+
+  function setHotkeyBackdrop(value: string) {
+    saveHotkey({ ...hotkey, backdrop: value as WindowBackdrop });
+  }
+
+  function testHotkeyWindow() {
+    HotkeyWindowService.Toggle().catch(() => {});
+  }
+
+  // Maps browser KeyboardEvent.key to the same key-name spelling Wails'
+  // accelerator parser accepts (github.com/wailsapp/wails/v3 pkg/application
+  // keys.go's `namedKeys`) - modifiers are handled separately below via the
+  // event's own modifier flags.
+  const NAMED_KEY_MAP: Record<string, string> = {
+    Backspace: "backspace",
+    Tab: "tab",
+    Enter: "enter",
+    Escape: "escape",
+    ArrowLeft: "left",
+    ArrowRight: "right",
+    ArrowUp: "up",
+    ArrowDown: "down",
+    " ": "space",
+    Delete: "delete",
+    Home: "home",
+    End: "end",
+    PageUp: "page up",
+    PageDown: "page down",
+    NumLock: "numlock",
+  };
+  const IGNORED_CAPTURE_KEYS = new Set(["Meta", "Control", "Alt", "Shift", "AltGraph", "CapsLock", "Dead", "Unidentified"]);
+  const FUNCTION_KEY = /^f([1-9]|[12]\d|3[0-5])$/;
+
+  function prettyKey(key: string): string {
+    if (key.length === 1) return key.toUpperCase();
+    return key.replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+
+  function onCaptureKeydown(e: KeyboardEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.key === "Escape") {
+      stopCapture();
+      return;
+    }
+    if (IGNORED_CAPTURE_KEYS.has(e.key)) return;
+
+    let key: string | null = null;
+    if (NAMED_KEY_MAP[e.key]) key = NAMED_KEY_MAP[e.key];
+    else if (FUNCTION_KEY.test(e.key)) key = e.key.toLowerCase();
+    else if (e.key.length === 1) key = e.key.toLowerCase();
+    if (!key) return;
+
+    const modifiers: string[] = [];
+    if (e.metaKey) modifiers.push("Cmd");
+    if (e.ctrlKey) modifiers.push("Ctrl");
+    if (e.altKey) modifiers.push("Option");
+    if (e.shiftKey) modifiers.push("Shift");
+
+    // A global shortcut with no modifier at all (bare "A", bare Space...)
+    // would swallow that key everywhere, all the time - only function keys
+    // are common/safe enough to allow unmodified.
+    if (modifiers.length === 0 && !FUNCTION_KEY.test(key)) {
+      hotkeyError = "Bu kısayol için en az bir değiştirici tuş (Cmd/Ctrl/Option/Shift) gerekli.";
+      return;
+    }
+
+    stopCapture();
+    saveHotkey({ ...hotkey, shortcut: [...modifiers, prettyKey(key)].join("+"), enabled: true });
+  }
+
+  function startCapture() {
+    hotkeyCapturing = true;
+    hotkeyError = null;
+    window.addEventListener("keydown", onCaptureKeydown, { capture: true });
+  }
+
+  function stopCapture() {
+    hotkeyCapturing = false;
+    window.removeEventListener("keydown", onCaptureKeydown, { capture: true });
+  }
+
+  onDestroy(() => window.removeEventListener("keydown", onCaptureKeydown, { capture: true }));
 </script>
 
 <div class="settings-view">
@@ -115,6 +259,86 @@
     </p>
     <p class="muted hint">Değişikliğin görünmesi için uygulamayı kapatıp yeniden açman gerekiyor.</p>
     {#if backdropSaved}<p class="saved-hint">Kaydedildi - bir sonraki açılışta uygulanacak.</p>{/if}
+  </div>
+
+  <div class="glass-panel settings-card">
+    <h3>Hotkey Penceresi</h3>
+    <p class="muted section-intro hotkey-intro">
+      iTerm'deki gibi: bir global kısayolla, uygulama arka plandayken bile açılıp kapanan, tek bir yerel terminal
+      içeren yüzen bir pencere.
+    </p>
+
+    <label class="hotkey-enable-row">
+      <input type="checkbox" checked={hotkey.enabled} onchange={toggleHotkeyEnabled} disabled={hotkeySaving} />
+      <span>Etkin</span>
+    </label>
+
+    <div class="field">
+      <label for="hotkey-shortcut-btn">Kısayol</label>
+      <div class="row hotkey-shortcut-row">
+        <span class="mono hotkey-shortcut-value">{hotkey.shortcut || "Ayarlanmadı"}</span>
+        <button id="hotkey-shortcut-btn" type="button" class="ghost" onclick={hotkeyCapturing ? stopCapture : startCapture}>
+          <KeyRound size={13} strokeWidth={2} />
+          {hotkeyCapturing ? "Tuşlara basın… (iptal: Esc)" : "Kısayolu değiştir"}
+        </button>
+      </div>
+      {#if hotkeyError}<p class="error-text hint">{hotkeyError}</p>{/if}
+      {#if hotkey.enabled && !hotkey.shortcut}
+        <p class="muted hint">Etkin ama henüz bir kısayol seçilmedi - "Kısayolu değiştir"e tıklayıp bir tuş kombinasyonuna bas.</p>
+      {/if}
+    </div>
+
+    <div class="field">
+      <div class="row between">
+        <label for="hotkey-opacity">Pencere saydamlığı</label>
+        <span class="muted mono value-badge">%{hotkey.opacity}</span>
+      </div>
+      <input
+        id="hotkey-opacity"
+        type="range"
+        min="10"
+        max="100"
+        step="1"
+        value={hotkey.opacity}
+        oninput={(e) => setHotkeyOpacity(Number(e.currentTarget.value))}
+      />
+    </div>
+
+    <div class="field">
+      <label for="hotkey-color">Pencere arka plan rengi</label>
+      <input id="hotkey-color" type="color" value={hotkey.bgColor} oninput={(e) => setHotkeyColor(e.currentTarget.value)} />
+    </div>
+
+    <div class="field">
+      <label for="hotkey-backdrop-options">Pencere arkaplanı (native)</label>
+      <div id="hotkey-backdrop-options" class="backdrop-options">
+        {#each BACKDROP_OPTIONS as opt (opt.value)}
+          <label class="backdrop-option {hotkey.backdrop === opt.value ? 'selected' : ''}">
+            <input
+              type="radio"
+              name="hotkey-backdrop"
+              value={opt.value}
+              checked={hotkey.backdrop === opt.value}
+              onchange={() => setHotkeyBackdrop(opt.value)}
+            />
+            <span class="backdrop-option-text">
+              <span class="backdrop-option-label">{opt.label}</span>
+              <span class="muted backdrop-option-hint">{opt.hint}</span>
+            </span>
+          </label>
+        {/each}
+      </div>
+      <p class="muted hint">Yukarıdaki renk/saydamlık bunun üzerine biner. Değişikliğin görünmesi için uygulamayı kapatıp yeniden açman gerekiyor.</p>
+    </div>
+
+    <div class="row between">
+      <button type="button" class="ghost" onclick={testHotkeyWindow}>
+        <PlayCircle size={13} strokeWidth={2} />
+        Pencereyi test et
+      </button>
+      {#if hotkeySaved}<span class="saved-hint">Kaydedildi</span>{/if}
+    </div>
+    <p class="muted hint">Kısayol/renk/saydamlık anında uygulanır - pencere arkaplanı (native) hariç, yeniden başlatma gerekmez.</p>
   </div>
 
   <div class="glass-panel settings-card">
@@ -215,6 +439,36 @@
     font-size: 11px;
     margin: 6px 0 0;
     color: var(--accent);
+  }
+  .hotkey-intro {
+    margin: 0 0 12px;
+  }
+  .hotkey-enable-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .hotkey-enable-row span {
+    color: var(--text);
+    font-size: 12.5px;
+    font-weight: 500;
+  }
+  .hotkey-shortcut-row {
+    justify-content: space-between;
+  }
+  .hotkey-shortcut-value {
+    font-size: 12.5px;
+    background: var(--surface-bg-strong);
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-sm);
+    padding: 5px 10px;
+    flex: 1;
+  }
+  #hotkey-color {
+    width: 48px;
+    height: 28px;
+    padding: 2px;
   }
   .accent-grid {
     display: flex;

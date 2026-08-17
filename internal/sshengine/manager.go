@@ -48,13 +48,22 @@ type HostFinder interface {
 	FindHostByID(id string) (config.Host, bool)
 }
 
+// recorderSink is the shape of a "Kayıt" (record) session watcher -
+// *record.Recorder implements this structurally. Kept as a local interface
+// so sshengine doesn't need to import internal/record just to feed it.
+type recorderSink interface {
+	FeedInput(data string)
+	FeedOutput(data string)
+}
+
 // Manager owns every live session and the shared native-engine connection
 // pool (so multiple sessions to the same host reuse one authenticated
 // ssh.Client instead of re-dialing/re-authenticating per tab).
 type Manager struct {
-	mu       sync.Mutex
-	sessions map[string]Session
-	clients  map[string]*pooledClient
+	mu        sync.Mutex
+	sessions  map[string]Session
+	clients   map[string]*pooledClient
+	recorders map[string]recorderSink
 
 	passwords PasswordResolver
 	hosts     HostFinder
@@ -69,6 +78,7 @@ func NewManager(passwords PasswordResolver, hosts HostFinder, emitPrompt func(Pr
 	return &Manager{
 		sessions:    make(map[string]Session),
 		clients:     make(map[string]*pooledClient),
+		recorders:   make(map[string]recorderSink),
 		passwords:   passwords,
 		hosts:       hosts,
 		broker:      NewBroker(emitPrompt),
@@ -76,6 +86,29 @@ func NewManager(passwords PasswordResolver, hosts HostFinder, emitPrompt func(Pr
 		onConnected: onConnected,
 		onClosed:    onClosed,
 	}
+}
+
+// SetRecorder attaches a "Kayıt" watcher to a live session - from then on,
+// every Write (frontend keystrokes) and emitted output for that session ID
+// is also fed to it. Only one recorder per session; a second call replaces
+// the first.
+func (m *Manager) SetRecorder(sessionID string, r recorderSink) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.recorders[sessionID] = r
+}
+
+// ClearRecorder detaches a session's recorder, if any.
+func (m *Manager) ClearRecorder(sessionID string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.recorders, sessionID)
+}
+
+func (m *Manager) recorderFor(sessionID string) recorderSink {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.recorders[sessionID]
 }
 
 // Connect returns a session ID immediately and dials/authenticates in the
@@ -142,6 +175,9 @@ func (m *Manager) session(id string) (Session, error) {
 }
 
 func (m *Manager) Write(id, data string) error {
+	if r := m.recorderFor(id); r != nil {
+		r.FeedInput(data)
+	}
 	s, err := m.session(id)
 	if err != nil {
 		return err
@@ -177,6 +213,7 @@ func (m *Manager) AnswerPrompt(promptID string, values []string, trusted bool) b
 func (m *Manager) removeSession(id string, closeErr error) {
 	m.mu.Lock()
 	delete(m.sessions, id)
+	delete(m.recorders, id)
 	m.mu.Unlock()
 	m.broker.CancelSession(id)
 	if m.onClosed != nil {
@@ -185,6 +222,9 @@ func (m *Manager) removeSession(id string, closeErr error) {
 }
 
 func (m *Manager) emitOutput(id, data string) {
+	if r := m.recorderFor(id); r != nil {
+		r.FeedOutput(data)
+	}
 	if m.onOutput != nil {
 		m.onOutput(id, data)
 	}

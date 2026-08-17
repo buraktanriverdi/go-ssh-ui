@@ -2,8 +2,11 @@
   import { PasswordService } from "../../bindings/go-ssh-ui";
   import type { PasswordEntry } from "../../bindings/go-ssh/password/models";
   import { KeyRound, Eye, Pencil, Trash2, Copy, Plus } from "@lucide/svelte";
+  import ConfirmDialog from "../components/ConfirmDialog.svelte";
 
+  let confirmDialogRef: ReturnType<typeof ConfirmDialog> = $state()!;
   let entries: PasswordEntry[] = $state([]);
+  let loading = $state(true);
   let loadError: string | null = $state(null);
 
   let editDialog: HTMLDialogElement;
@@ -25,6 +28,8 @@
       loadError = null;
     } catch (err) {
       loadError = String(err);
+    } finally {
+      loading = false;
     }
   }
   refresh();
@@ -70,7 +75,8 @@
   }
 
   async function remove(entry: PasswordEntry) {
-    if (!confirm(`"${entry.id}" şifresini silmek istediğine emin misin?`)) return;
+    const ok = await confirmDialogRef.open(`"${entry.id}" şifresini silmek istediğine emin misin?`);
+    if (!ok) return;
     entries = ((await PasswordService.Delete(entry.id)) ?? []).filter((e): e is PasswordEntry => e !== null);
   }
 
@@ -95,6 +101,8 @@
 
   {#if loadError}
     <p class="error-text">{loadError}</p>
+  {:else if loading}
+    <p class="muted">Yükleniyor…</p>
   {:else if entries.length === 0}
     <p class="muted">Henüz kayıtlı şifre yok.</p>
   {:else}
@@ -158,6 +166,8 @@
   </div>
 </dialog>
 
+<ConfirmDialog bind:this={confirmDialogRef} />
+
 <style>
   .passwords-view {
     padding: 16px 20px 32px;
@@ -175,13 +185,21 @@
   .entry-row {
     padding: 6px 8px;
   }
+  :global(.row-icon) {
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
   .entry-info {
     display: flex;
     flex-direction: column;
     gap: 1px;
+    min-width: 0;
   }
   .entry-id {
     font-weight: 600;
+  }
+  .spacer {
+    flex: 1;
   }
   .reveal-box {
     display: block;

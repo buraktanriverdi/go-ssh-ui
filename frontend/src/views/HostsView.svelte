@@ -7,6 +7,7 @@
   import CategoryTree from "../components/CategoryTree.svelte";
   import CategoryForm from "../components/CategoryForm.svelte";
   import HostForm from "../components/HostForm.svelte";
+  import ConfirmDialog from "../components/ConfirmDialog.svelte";
 
   let {
     onConnectHost,
@@ -30,6 +31,7 @@
 
   let categoryFormRef: ReturnType<typeof CategoryForm> = $state()!;
   let hostFormRef: ReturnType<typeof HostForm> = $state()!;
+  let confirmDialogRef: ReturnType<typeof ConfirmDialog> = $state()!;
 
   function flattenHosts(categories: Category[] | null | undefined, out: HostRef[] = []): HostRef[] {
     for (const cat of categories ?? []) {
@@ -54,6 +56,17 @@
   }
   load();
 
+  // Called from outside (App.svelte, via bind:this) when a host was added
+  // by something other than this view's own forms - e.g. Faz 5's "Kayıt"
+  // review dialog, which saves directly through HostService.AddHost from a
+  // terminal tab. This view only fetches on its own mount, and since
+  // switching tabs/nav doesn't remount it when it was already showing
+  // Hostlar, a save from elsewhere would otherwise sit invisible until the
+  // next actual remount.
+  export function reload() {
+    load();
+  }
+
   function applyConfig(next: Config) {
     cfg = next;
     allHosts = flattenHosts(next.categories);
@@ -64,7 +77,8 @@
   }
 
   async function deleteCategory(path: string[], category: Category) {
-    if (!confirm(`"${category.name}" kategorisini (ve içindekileri) silmek istediğine emin misin?`)) return;
+    const ok = await confirmDialogRef.open(`"${category.name}" kategorisini (ve içindekileri) silmek istediğine emin misin?`);
+    if (!ok) return;
     try {
       const next = await HostService.DeleteCategory({ sourceFile: category.sourceFile ?? "", categoryPath: path });
       if (next) cfg = next;
@@ -74,7 +88,8 @@
   }
 
   async function deleteHost(path: string[], host: Host) {
-    if (!confirm(`"${host.name}" hostunu silmek istediğine emin misin?`)) return;
+    const ok = await confirmDialogRef.open(`"${host.name}" hostunu silmek istediğine emin misin?`);
+    if (!ok) return;
     try {
       const next = await HostService.DeleteHost({ sourceFile: host.sourceFile ?? "", categoryPath: path, name: host.name });
       if (next) cfg = next;
@@ -123,6 +138,7 @@
   <CategoryForm bind:this={categoryFormRef} {files} onSaved={applyConfig} />
   <HostForm bind:this={hostFormRef} {files} {allHosts} onSaved={applyConfig} />
 {/if}
+<ConfirmDialog bind:this={confirmDialogRef} />
 
 <style>
   .hosts-view {

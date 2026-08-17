@@ -19,6 +19,7 @@
   } from "@lucide/svelte";
   import { FileService } from "../../bindings/go-ssh-ui";
   import type { Entry } from "../../bindings/go-ssh-ui/internal/scpfs/models";
+  import ConfirmDialog from "./ConfirmDialog.svelte";
 
   let { categoryPath, hostName }: { categoryPath: string[]; hostName: string } = $props();
 
@@ -50,6 +51,7 @@
   let renameDialog: HTMLDialogElement;
   let renameTarget: Entry | null = $state(null);
   let renameValue = $state("");
+  let confirmDialogRef: ReturnType<typeof ConfirmDialog> = $state()!;
 
   const dropZoneId = `filedrop-${crypto.randomUUID()}`;
   let dropActive = $state(false);
@@ -176,7 +178,8 @@
   }
 
   async function deleteRemote(entry: Entry) {
-    if (!confirm(`"${entry.name}" silinsin mi?`)) return;
+    const ok = await confirmDialogRef.open(`"${entry.name}" silinsin mi?`);
+    if (!ok) return;
     try {
       await FileService.Delete({ ...hostReq, target: remotePath(entry.name) });
       loadRemote();
@@ -463,6 +466,8 @@
     </div>
   </form>
 </dialog>
+
+<ConfirmDialog bind:this={confirmDialogRef} />
 
 <style>
   .center-wrap {

@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+
+	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
 // WindowBackdrop is the persisted choice for the native macOS window
@@ -30,6 +32,22 @@ func (b WindowBackdrop) valid() bool {
 		return true
 	default:
 		return false
+	}
+}
+
+// macBackdrop maps a persisted WindowBackdrop choice to the Wails option
+// that actually creates it - shared by both windows (main.go), since both
+// now offer the same three-way Bulanık/Liquid Glass/Şeffaf picker (see
+// AppearanceService for the main window, HotkeyWindowService for the
+// hotkey one), just backed by separate persisted preferences.
+func macBackdrop(b WindowBackdrop) application.MacBackdrop {
+	switch b {
+	case BackdropTransparent:
+		return application.MacBackdropTransparent
+	case BackdropLiquidGlass:
+		return application.MacBackdropLiquidGlass
+	default:
+		return application.MacBackdropTranslucent
 	}
 }
 

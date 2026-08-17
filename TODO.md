@@ -1,0 +1,6 @@
+- Sekme isimlendirme gruplandırma
+- Hotkey window yatay dikey bölme kısayolu
+- Sekme yönetimi için kısayol
+- Punto büyütmr küçültme (kısayol)
+- Uygulamayı kapatınca status bar da çıkması ve hotkey windowun hala çalışması
+- dmg build alıp relese çıkma

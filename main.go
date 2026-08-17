@@ -18,6 +18,24 @@ type FilesDroppedEvent struct {
 	Files     []string `json:"files"`
 }
 
+// wireFileDrop forwards native Finder drops on win to the frontend as a
+// FilesDroppedEvent. Needed on both windows now that the hotkey window
+// mounts the same <App/> (and therefore the same FilesPane) as the main
+// one - each window needs its own EnableFileDrop + this handler, since
+// OnWindowEvent only fires for drops that landed on that specific window.
+func wireFileDrop(win *application.WebviewWindow) {
+	win.OnWindowEvent(events.Common.WindowFilesDropped, func(event *application.WindowEvent) {
+		details := event.Context().DropTargetDetails()
+		if details == nil {
+			return
+		}
+		application.Get().Event.Emit("files:dropped", FilesDroppedEvent{
+			ElementID: details.ElementID,
+			Files:     event.Context().DroppedFiles(),
+		})
+	})
+}
+
 // Wails uses Go's `embed` package to embed the frontend files into the binary.
 // Any files in the frontend/dist folder will be embedded into the binary and
 // made available to the frontend.
@@ -41,6 +59,8 @@ func main() {
 	sshManager := NewSSHManager(hostService, passwordService)
 	terminalService := NewTerminalService(hostService, sshManager)
 	fileService := NewFileService(hostService, sshManager)
+	recordService := NewRecordService(sshManager)
+	hotkeyWindowService := NewHotkeyWindowService()
 
 	// Read before the window is created - see windowprefs.go for why this
 	// one preference can't just live in the webview's localStorage like the
@@ -56,7 +76,9 @@ func main() {
 			application.NewService(passwordService),
 			application.NewService(terminalService),
 			application.NewService(fileService),
+			application.NewService(recordService),
 			application.NewService(&AppearanceService{}),
+			application.NewService(hotkeyWindowService),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
@@ -67,21 +89,7 @@ func main() {
 	})
 
 	application.RegisterEvent[FilesDroppedEvent]("files:dropped")
-
-	// 'Translucent' gives the frosted/blurred macOS vibrancy look;
-	// 'Transparent' is just as see-through (the CSS side's --app-bg-alpha
-	// still controls how much shows through) but crisp, with no blur at
-	// all; 'LiquidGlass' is Apple's macOS 15+ material (Wails falls back to
-	// Translucent by itself on older macOS). The Ayarlar picker backed by
-	// AppearanceService chooses between the three for the *next* launch,
-	// since Wails has no runtime setter for a window's backdrop material.
-	backdrop := application.MacBackdropTranslucent
-	switch winPrefs.Backdrop {
-	case BackdropTransparent:
-		backdrop = application.MacBackdropTransparent
-	case BackdropLiquidGlass:
-		backdrop = application.MacBackdropLiquidGlass
-	}
+	application.RegisterEvent[HotkeyWindowSettings]("hotkey:settings-changed")
 
 	// Create a new window with the necessary options.
 	// 'Mac' options give it the translucent, inset-title-bar "liquid glass"
@@ -96,7 +104,7 @@ func main() {
 		EnableFileDrop: true,
 		Mac: application.MacWindow{
 			InvisibleTitleBarHeight: 50,
-			Backdrop:                backdrop,
+			Backdrop:                macBackdrop(winPrefs.Backdrop),
 			TitleBar:                application.MacTitleBarHiddenInset,
 			// Only consulted when Backdrop is MacBackdropLiquidGlass.
 			// Automatic/Automatic lets AppKit pick light-vs-dark glass and
@@ -111,17 +119,47 @@ func main() {
 		URL:              "/",
 	})
 
-	// Forwards native Finder drops to the frontend - see FilesDroppedEvent.
-	win.OnWindowEvent(events.Common.WindowFilesDropped, func(event *application.WindowEvent) {
-		details := event.Context().DropTargetDetails()
-		if details == nil {
-			return
-		}
-		application.Get().Event.Emit("files:dropped", FilesDroppedEvent{
-			ElementID: details.ElementID,
-			Files:     event.Context().DroppedFiles(),
-		})
+	wireFileDrop(win)
+
+	// The "hotkey window" (see HotkeyWindowService/PLAN.md Faz 6): a second,
+	// initially hidden window shown/hidden by a global shortcut -
+	// go-ssh-ui's answer to iTerm's hotkey window. It's its own window (not
+	// a mode of `win`) so it can float AlwaysOnTop, skip the dock-focus
+	// dance, and carry its own appearance settings independently of the
+	// main window's. Its Backdrop material (blurred/liquid-glass/crisp) is
+	// the user's saved hotkey-window choice, same restart caveat as the
+	// main window's - BackgroundColour is always fully clear at creation
+	// because the visible tint is CSS now (App.svelte's hotkeyMode
+	// handling), painted over whatever this Backdrop renders, not a native
+	// color. Frameless since a floating quick-access panel has no reason
+	// for a title bar or traffic lights. Width/Height here are just a seed
+	// for the very first Show() - HotkeyWindowService.positionOnCursorScreen
+	// immediately docks it to the top edge, full width, of whichever screen
+	// has the cursor, every time it's shown. `?mode=hotkey` tells the
+	// frontend (see main.ts/App.svelte) it's running in the hotkey window,
+	// which only changes window-chrome details (no sidebar, CSS tint) - the
+	// actual content (tabs, Başlangıç) is the same <App/> as the main window.
+	hotkeyWin := app.Window.NewWithOptions(application.WebviewWindowOptions{
+		Title:           "go-ssh-ui — Hotkey Terminal",
+		Width:           900,
+		Height:          defaultHotkeyHeight,
+		Hidden:          true,
+		Frameless:       true,
+		AlwaysOnTop:     true,
+		HideOnFocusLost: true,
+		EnableFileDrop:  true,
+		Mac: application.MacWindow{
+			Backdrop: macBackdrop(hotkeyWindowService.GetSettings().Backdrop),
+			LiquidGlass: application.MacLiquidGlass{
+				Style:    application.LiquidGlassStyleAutomatic,
+				Material: application.NSVisualEffectMaterialAuto,
+			},
+		},
+		BackgroundColour: application.NewRGBA(0, 0, 0, 0),
+		URL:              "/?mode=hotkey",
 	})
+	wireFileDrop(hotkeyWin)
+	hotkeyWindowService.attach(win, hotkeyWin)
 
 	// Run the application. This blocks until the application has been exited.
 	if err := app.Run(); err != nil {

@@ -1,5 +1,8 @@
 <script lang="ts">
-  import { PasswordService, TerminalService } from "../bindings/go-ssh-ui";
+  import { onDestroy } from "svelte";
+  import { Events } from "@wailsio/runtime";
+  import { PasswordService, TerminalService, HotkeyWindowService } from "../bindings/go-ssh-ui";
+  import type { HotkeyWindowSettings } from "../bindings/go-ssh-ui";
   import { Server, KeyRound, Lock, Menu, Home, X, Megaphone, FolderOpen, Settings, SquareTerminal, Plus } from "@lucide/svelte";
   import { SvelteSet } from "svelte/reactivity";
   import type { Host } from "../bindings/go-ssh/config/models";
@@ -10,6 +13,35 @@
   import TerminalPane, { type TerminalStatus } from "./components/TerminalPane.svelte";
   import FilesPane from "./components/FilesPane.svelte";
 
+  // Set only for the hotkey window (main.go's second window, ?mode=hotkey -
+  // see main.ts). Content is mostly identical to the main window - same tab
+  // system, same Başlangıç tab - minus the sidebar (no hamburger/Hostlar/
+  // Şifreler/Ayarlar/Kilitle - just tabs + Başlangıç, per user request), and
+  // with a CSS-driven background tint instead of the main window's --app-bg,
+  // since the hotkey window's color/opacity are its own separate setting
+  // (HotkeyWindowService) painted over whatever native Backdrop material
+  // main.go gave that window - see applyHotkeyAppearance below.
+  let { hotkeyMode = false }: { hotkeyMode?: boolean } = $props();
+  if (hotkeyMode) {
+    document.documentElement.classList.add("hotkey-window");
+
+    const hex2rgb = (hex: string) => {
+      const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+      if (!m) return "20, 20, 26";
+      return `${parseInt(m[1].slice(0, 2), 16)}, ${parseInt(m[1].slice(2, 4), 16)}, ${parseInt(m[1].slice(4, 6), 16)}`;
+    };
+    const applyHotkeyAppearance = (s: HotkeyWindowSettings) => {
+      const root = document.documentElement.style;
+      root.setProperty("--hotkey-bg-rgb", hex2rgb(s.bgColor));
+      root.setProperty("--hotkey-bg-alpha", String(s.opacity / 100));
+    };
+    HotkeyWindowService.GetSettings().then(applyHotkeyAppearance).catch(() => {});
+    // Settings can be changed from either window now (Ayarlar is reachable
+    // from the main window even though this one hides its own sidebar) -
+    // this keeps the two in sync regardless of which one made the change.
+    onDestroy(Events.On("hotkey:settings-changed", (ev) => applyHotkeyAppearance(ev.data as HotkeyWindowSettings)));
+  }
+
   let unlocked: boolean | null = $state(null);
   // "Home" is a pinned, non-closable tab showing the host tree / password
   // manager - conceptually the start page. Connecting to a host opens an
@@ -18,6 +50,7 @@
   // opened - only closing a tab's × actually tears down its session.
   let sidebarNav: "hosts" | "passwords" | "settings" = $state("hosts");
   let sidebarCollapsed = $state(false);
+  let hostsViewRef: ReturnType<typeof HostsView> | undefined = $state();
 
   type TerminalTab = {
     id: string;
@@ -60,6 +93,17 @@
   function selectNav(nav: "hosts" | "passwords" | "settings") {
     sidebarNav = nav;
     activeTabId = "home";
+  }
+
+  // Faz 5 "Kayıt": RecordReviewDialog saves the host directly (not through
+  // HostsView's own forms), so if HostsView was already mounted on "hosts"
+  // nav, switching activeTabId back to it alone doesn't remount it -
+  // {#if sidebarNav === "hosts"} only remounts on an actual nav change, and
+  // sidebarNav might already be "hosts". Explicitly reload it too so the
+  // new host shows up immediately either way.
+  function onRecordedHostSaved() {
+    selectNav("hosts");
+    hostsViewRef?.reload();
   }
 
   function connectHost(categoryPath: string[], host: Host) {
@@ -139,11 +183,17 @@
 {:else if unlocked === false}
   <UnlockScreen onUnlocked={() => (unlocked = true)} />
 {:else}
-  <div class="shell" style:grid-template-columns={sidebarCollapsed ? "44px 1fr" : "var(--sidebar-width) 1fr"}>
+  <div
+    class="shell"
+    style:grid-template-columns={hotkeyMode ? "1fr" : sidebarCollapsed ? "44px 1fr" : "var(--sidebar-width) 1fr"}
+    style:grid-template-areas={hotkeyMode
+      ? '"toolbar" "content" "broadcast"'
+      : '"toolbar toolbar" "sidebar content" "broadcast broadcast"'}
+  >
     <!-- One toolbar row spans the full window width so the sidebar's and the
          content's top edges are guaranteed to align. -->
     <div class="toolbar chrome chrome-border-bottom">
-      <div class="toolbar-side"></div>
+      <div class="toolbar-side" class:hotkey-mode={hotkeyMode}></div>
       <div class="toolbar-main chrome-border-left">
         <div class="tab-strip">
           <button type="button" class="tab {activeTabId === 'home' ? 'active' : ''}" onclick={() => (activeTabId = "home")}>
@@ -200,58 +250,65 @@
       </div>
     </div>
 
-    <!-- Always rendered (never removed) so the hamburger toggle - the only
-         way back out of the collapsed state - never disappears along with
-         the rest of the sidebar. Collapsing just narrows the grid column
-         and hides everything below the toggle. -->
-    <nav class="sidebar chrome chrome-border-right">
-      <div class="sidebar-header">
-        <button type="button" class="icon-btn hamburger-btn" onclick={() => (sidebarCollapsed = !sidebarCollapsed)} title="Kenar çubuğu">
-          <Menu size={16} strokeWidth={2} />
-        </button>
-        {#if !sidebarCollapsed}
-          <span class="brand">go-ssh-ui</span>
-        {/if}
-      </div>
-      {#if !sidebarCollapsed}
-        <div class="sidebar-box glass-panel">
-          <button
-            type="button"
-            class="list-row nav-row {sidebarNav === 'hosts' && activeTabId === 'home' ? 'selected' : ''}"
-            onclick={() => selectNav("hosts")}
-          >
-            <Server size={15} strokeWidth={2} />
-            <span>Hostlar</span>
+    <!-- Hidden entirely in the hotkey window (per user request: just the tab
+         system + Başlangıç there, no hamburger/Hostlar/Şifreler/Ayarlar/
+         Kilitle) - sidebarNav stays at its "hosts" default with nothing to
+         change it, so the Başlangıç tab-pane below just always renders
+         HostsView. Otherwise (main window) always rendered - never removed,
+         so the hamburger toggle - the only way back out of the collapsed
+         state - never disappears along with the rest of the sidebar.
+         Collapsing just narrows the grid column and hides everything below
+         the toggle. -->
+    {#if !hotkeyMode}
+      <nav class="sidebar chrome chrome-border-right">
+        <div class="sidebar-header">
+          <button type="button" class="icon-btn hamburger-btn" onclick={() => (sidebarCollapsed = !sidebarCollapsed)} title="Kenar çubuğu">
+            <Menu size={16} strokeWidth={2} />
           </button>
-          <button
-            type="button"
-            class="list-row nav-row {sidebarNav === 'passwords' && activeTabId === 'home' ? 'selected' : ''}"
-            onclick={() => selectNav("passwords")}
-          >
-            <KeyRound size={15} strokeWidth={2} />
-            <span>Şifreler</span>
-          </button>
+          {#if !sidebarCollapsed}
+            <span class="brand">go-ssh-ui</span>
+          {/if}
         </div>
-        <div class="spacer"></div>
-        <button
-          type="button"
-          class="list-row nav-row {sidebarNav === 'settings' && activeTabId === 'home' ? 'selected' : ''}"
-          onclick={() => selectNav("settings")}
-        >
-          <Settings size={15} strokeWidth={2} />
-          <span>Ayarlar</span>
-        </button>
-        <button type="button" class="list-row nav-row" onclick={lock}>
-          <Lock size={15} strokeWidth={2} />
-          <span>Kilitle</span>
-        </button>
-      {/if}
-    </nav>
+        {#if !sidebarCollapsed}
+          <div class="sidebar-box glass-panel">
+            <button
+              type="button"
+              class="list-row nav-row {sidebarNav === 'hosts' && activeTabId === 'home' ? 'selected' : ''}"
+              onclick={() => selectNav("hosts")}
+            >
+              <Server size={15} strokeWidth={2} />
+              <span>Hostlar</span>
+            </button>
+            <button
+              type="button"
+              class="list-row nav-row {sidebarNav === 'passwords' && activeTabId === 'home' ? 'selected' : ''}"
+              onclick={() => selectNav("passwords")}
+            >
+              <KeyRound size={15} strokeWidth={2} />
+              <span>Şifreler</span>
+            </button>
+          </div>
+          <div class="spacer"></div>
+          <button
+            type="button"
+            class="list-row nav-row {sidebarNav === 'settings' && activeTabId === 'home' ? 'selected' : ''}"
+            onclick={() => selectNav("settings")}
+          >
+            <Settings size={15} strokeWidth={2} />
+            <span>Ayarlar</span>
+          </button>
+          <button type="button" class="list-row nav-row" onclick={lock}>
+            <Lock size={15} strokeWidth={2} />
+            <span>Kilitle</span>
+          </button>
+        {/if}
+      </nav>
+    {/if}
 
     <main class="content">
       <div class="tab-pane" style:display={activeTabId === "home" ? "block" : "none"}>
         {#if sidebarNav === "hosts"}
-          <HostsView onConnectHost={connectHost} onOpenFiles={openFiles} />
+          <HostsView bind:this={hostsViewRef} onConnectHost={connectHost} onOpenFiles={openFiles} />
         {:else if sidebarNav === "passwords"}
           <PasswordsView />
         {:else}
@@ -280,6 +337,7 @@
             hostName="Terminal"
             onStatusChange={(status) => setLocalTabStatus(tab.id, status)}
             onSessionId={(sessionId) => setLocalTabSessionId(tab.id, sessionId)}
+            onHostSaved={onRecordedHostSaved}
           />
         </div>
       {/each}
@@ -319,7 +377,9 @@
     height: 100vh;
     display: grid;
     grid-template-rows: var(--toolbar-height) minmax(0, 1fr) auto;
-    grid-template-areas: "toolbar toolbar" "sidebar content" "broadcast broadcast";
+    /* grid-template-areas is set inline (style:grid-template-areas above) -
+       differs between the main window (toolbar/sidebar/content/broadcast)
+       and the hotkey window (no sidebar column at all, see hotkeyMode). */
     transition: grid-template-columns 0.15s ease;
   }
   .toolbar {
@@ -335,6 +395,33 @@
     align-items: center;
     padding-left: 74px; /* clears the traffic-light inset */
     -webkit-app-region: drag;
+  }
+  /* The hotkey window is Frameless (main.go) - no traffic lights to clear
+     space for, and (per user request) no sidebar to align widths with
+     either, so this whole reserved strip collapses to nothing, letting the
+     tab strip start flush left. */
+  .toolbar-side.hotkey-mode {
+    width: 0;
+    padding-left: 0;
+  }
+
+  /* Scoped to the hotkey window only (App.svelte adds this class to <html>
+     when hotkeyMode is true) - NOT a bare `:global(html, body)` rule, since
+     both windows load the exact same compiled stylesheet and an unscoped
+     override here would blank out the *main* window's background too
+     (regression fixed by this scoping). --hotkey-bg-rgb/-alpha are set here
+     as sane pre-JS defaults and then overridden live (higher-specificity
+     inline style) by applyHotkeyAppearance above, from HotkeyWindowService's
+     saved color/opacity - painted over whatever native Backdrop material
+     main.go gave this window (blurred/liquid-glass/crisp), exactly like the
+     main window layers --app-bg over its own Backdrop choice. */
+  :global(html.hotkey-window) {
+    --hotkey-bg-rgb: 20, 20, 26;
+    --hotkey-bg-alpha: 0.9;
+  }
+  :global(html.hotkey-window),
+  :global(html.hotkey-window body) {
+    background: rgba(var(--hotkey-bg-rgb), var(--hotkey-bg-alpha)) !important;
   }
   .brand {
     font-size: 12px;
