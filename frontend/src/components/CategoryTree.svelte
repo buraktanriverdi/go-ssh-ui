@@ -7,6 +7,7 @@
     category,
     path,
     expanded,
+    selectedHostId = null,
     onAddSubcategory,
     onEditCategory,
     onDeleteCategory,
@@ -19,6 +20,7 @@
     category: Category;
     path: string[];
     expanded: Set<string>;
+    selectedHostId?: string | null;
     onAddSubcategory: (path: string[]) => void;
     onEditCategory: (path: string[], category: Category) => void;
     onDeleteCategory: (path: string[], category: Category) => void;
@@ -66,6 +68,7 @@
           category={sub}
           path={[...path, sub.name]}
           {expanded}
+          {selectedHostId}
           {onAddSubcategory}
           {onEditCategory}
           {onDeleteCategory}
@@ -79,6 +82,7 @@
       {#each category.hosts ?? [] as host (host.name)}
         <div
           class="list-row host-row"
+          class:selected={!!host.id && host.id === selectedHostId}
           onclick={() => onConnectHost(path, host)}
           role="button"
           tabindex="0"

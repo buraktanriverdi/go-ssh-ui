@@ -91,6 +91,17 @@ func main() {
 	application.RegisterEvent[FilesDroppedEvent]("files:dropped")
 	application.RegisterEvent[HotkeyWindowSettings]("hotkey:settings-changed")
 
+	// The frontend (App.svelte) repurposes Cmd+W to close the active tab
+	// rather than the window - remove the default File menu's "Close
+	// Window" role, which otherwise claims the Cmd+W key equivalent at the
+	// native menu level before the webview's keydown handler ever runs,
+	// closing the whole window instead of just the tab.
+	appMenu := application.DefaultApplicationMenu()
+	if closeWindow := appMenu.FindByRole(application.CloseWindow); closeWindow != nil {
+		appMenu.RemoveMenuItem(closeWindow)
+	}
+	app.Menu.SetApplicationMenu(appMenu)
+
 	// Create a new window with the necessary options.
 	// 'Mac' options give it the translucent, inset-title-bar "liquid glass"
 	// look on macOS.

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy } from "svelte";
-  import { Events } from "@wailsio/runtime";
+  import { Events, Window as WailsWindow } from "@wailsio/runtime";
   import { PasswordService, TerminalService, HotkeyWindowService } from "../bindings/go-ssh-ui";
   import type { HotkeyWindowSettings } from "../bindings/go-ssh-ui";
   import { Server, KeyRound, Lock, Menu, Home, X, Megaphone, FolderOpen, Settings, SquareTerminal, Plus } from "@lucide/svelte";
@@ -146,13 +146,99 @@
     localTabs = localTabs.map((t) => (t.id === id ? { ...t, sessionId } : t));
   }
 
+  // Same left-to-right order as the tab-strip markup below, so both Cmd+
+  // Left/Right cycling and closeTab's "select my left neighbor" land on the
+  // tab the user visually expects.
+  function allTabIds(): string[] {
+    return ["home", ...terminalTabs.map((t) => t.id), ...fileTabs.map((t) => t.id), ...localTabs.map((t) => t.id)];
+  }
+
   function closeTab(id: string) {
+    if (activeTabId === id) {
+      const ids = allTabIds();
+      const idx = ids.indexOf(id);
+      activeTabId = idx > 0 ? ids[idx - 1] : "home";
+    }
     terminalTabs = terminalTabs.filter((t) => t.id !== id);
     fileTabs = fileTabs.filter((t) => t.id !== id);
     localTabs = localTabs.filter((t) => t.id !== id);
     broadcastTargets.delete(id);
-    if (activeTabId === id) activeTabId = "home";
   }
+
+  function cycleTab(direction: 1 | -1) {
+    const ids = allTabIds();
+    const idx = ids.indexOf(activeTabId);
+    if (idx === -1) return;
+    activeTabId = ids[(idx + direction + ids.length) % ids.length];
+  }
+
+  // Hotkey window's height only ever moves from its bottom edge (Y is
+  // pinned to the screen top - see hotkeywindowservice.go's
+  // positionOnCursorScreen), so Cmd+Down/Up just nudges height the same way
+  // dragging that edge down/up would. No clamping needed here - the native
+  // window already carries the SetMinSize/SetMaxSize that drag-resize
+  // respects, so a SetSize past either bound is clamped for free. A real
+  // resize also fires the same WindowDidResize Go's side already debounces
+  // into a persisted save, so this needs no Go changes at all.
+  const HOTKEY_HEIGHT_STEP = 24;
+  function adjustHotkeyHeight(delta: number) {
+    WailsWindow.Size()
+      .then(({ width, height }) => WailsWindow.SetSize(width, height + delta))
+      .catch(() => {});
+  }
+
+  // Cmd+Left/Right/W/T tab management (+ Cmd+Down/Up hotkey-window height,
+  // hotkeyMode only) - both windows (main + hotkey) mount this same
+  // component, so one listener covers both, see hotkeyMode above.
+  // Registered on window with capture:true (not `<svelte:window>`, which
+  // only attaches in the bubble phase) so it runs before xterm.js's own
+  // keydown handler on its hidden textarea gets a chance to see the event.
+  function handleGlobalKeydown(e: KeyboardEvent) {
+    if (!e.metaKey || e.ctrlKey || e.altKey) return;
+    const target = document.activeElement;
+    const isTextEditingContext =
+      target instanceof HTMLElement &&
+      !target.classList.contains("xterm-helper-textarea") &&
+      (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
+    switch (e.key) {
+      case "ArrowRight":
+        if (isTextEditingContext) return;
+        e.preventDefault();
+        cycleTab(1);
+        break;
+      case "ArrowLeft":
+        if (isTextEditingContext) return;
+        e.preventDefault();
+        cycleTab(-1);
+        break;
+      case "ArrowDown":
+        if (!hotkeyMode || isTextEditingContext) return;
+        e.preventDefault();
+        adjustHotkeyHeight(HOTKEY_HEIGHT_STEP);
+        break;
+      case "ArrowUp":
+        if (!hotkeyMode || isTextEditingContext) return;
+        e.preventDefault();
+        adjustHotkeyHeight(-HOTKEY_HEIGHT_STEP);
+        break;
+      case "w":
+      case "W":
+        if (!e.shiftKey) {
+          e.preventDefault();
+          if (activeTabId !== "home") closeTab(activeTabId);
+        }
+        break;
+      case "t":
+      case "T":
+        if (!e.shiftKey) {
+          e.preventDefault();
+          openLocalTerminal();
+        }
+        break;
+    }
+  }
+  window.addEventListener("keydown", handleGlobalKeydown, true);
+  onDestroy(() => window.removeEventListener("keydown", handleGlobalKeydown, true));
 
   function toggleBroadcast() {
     if (!broadcastOpen) {
@@ -308,7 +394,7 @@
     <main class="content">
       <div class="tab-pane" style:display={activeTabId === "home" ? "block" : "none"}>
         {#if sidebarNav === "hosts"}
-          <HostsView bind:this={hostsViewRef} onConnectHost={connectHost} onOpenFiles={openFiles} />
+          <HostsView bind:this={hostsViewRef} active={activeTabId === "home"} onConnectHost={connectHost} onOpenFiles={openFiles} />
         {:else if sidebarNav === "passwords"}
           <PasswordsView />
         {:else}

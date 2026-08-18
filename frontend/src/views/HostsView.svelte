@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy } from "svelte";
   import { HostService } from "../../bindings/go-ssh-ui";
   import type { Config, Category, Host } from "../../bindings/go-ssh/config/models";
   import type { Files } from "../../bindings/go-ssh-ui/internal/configx/models";
@@ -10,9 +11,16 @@
   import ConfirmDialog from "../components/ConfirmDialog.svelte";
 
   let {
+    active = false,
     onConnectHost,
     onOpenFiles,
   }: {
+    // Whether the Başlangıç tab is the one currently showing - this view
+    // stays mounted in the background (App.svelte only toggles its tab-pane's
+    // display) whenever another tab is active, so the arrow-key navigation
+    // below must check this before acting or it'd steal keystrokes meant for
+    // whatever tab (e.g. a terminal) is actually visible.
+    active?: boolean;
     onConnectHost: (categoryPath: string[], host: Host) => void;
     onOpenFiles: (categoryPath: string[], host: Host) => void;
   } = $props();
@@ -42,6 +50,57 @@
     }
     return out;
   }
+
+  // Keyboard navigation (arrow keys select, space/return connects) only
+  // among currently-visible hosts - i.e. whatever's on screen right now,
+  // matching `expanded` exactly the way the tree itself renders it, rather
+  // than silently walking into collapsed categories the user hasn't opened.
+  type VisibleHost = { path: string[]; host: Host };
+  function visibleHostEntries(categories: Category[] | null | undefined, path: string[] = []): VisibleHost[] {
+    const out: VisibleHost[] = [];
+    for (const cat of categories ?? []) {
+      const catPath = [...path, cat.name];
+      if (!expanded.has(catPath.join("/"))) continue;
+      for (const h of cat.hosts ?? []) out.push({ path: catPath, host: h });
+      out.push(...visibleHostEntries(cat.categories, catPath));
+    }
+    return out;
+  }
+
+  let selectedHostId: string | null = $state(null);
+  let visibleHosts = $derived.by(() => visibleHostEntries(cfg?.categories));
+
+  function handleTreeKeydown(e: KeyboardEvent) {
+    if (!active || e.metaKey || e.ctrlKey || e.altKey) return;
+    // Native <dialog> (CategoryForm/HostForm/ConfirmDialog, ...) doesn't stop
+    // its keydowns from bubbling all the way to window even while it's the
+    // modal top layer, so without this guard confirming/cancelling one of
+    // those with Enter/Space would also connect to the selected host
+    // underneath.
+    if (document.querySelector("dialog[open]")) return;
+    const target = document.activeElement;
+    if (target instanceof HTMLElement && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
+    const list = visibleHosts;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      if (list.length === 0) return;
+      const idx = list.findIndex((v) => v.host.id === selectedHostId);
+      selectedHostId = list[Math.min(idx + 1, list.length - 1)].host.id!;
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      if (list.length === 0) return;
+      const idx = list.findIndex((v) => v.host.id === selectedHostId);
+      selectedHostId = list[Math.max(idx - 1, 0)].host.id!;
+    } else if (e.key === " " || e.key === "Enter") {
+      const entry = list.find((v) => v.host.id === selectedHostId);
+      if (entry) {
+        e.preventDefault();
+        onConnectHost(entry.path, entry.host);
+      }
+    }
+  }
+  window.addEventListener("keydown", handleTreeKeydown);
+  onDestroy(() => window.removeEventListener("keydown", handleTreeKeydown));
 
   async function load() {
     try {
@@ -120,6 +179,7 @@
           category={cat}
           path={[cat.name]}
           {expanded}
+          {selectedHostId}
           onAddSubcategory={(p) => categoryFormRef.openAdd(p)}
           onEditCategory={(p, c) => categoryFormRef.openEdit(p, c)}
           onDeleteCategory={deleteCategory}

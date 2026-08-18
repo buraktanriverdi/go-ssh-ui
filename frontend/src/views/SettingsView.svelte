@@ -116,11 +116,34 @@
     HotkeyWindowService.Toggle().catch(() => {});
   }
 
-  // Maps browser KeyboardEvent.key to the same key-name spelling Wails'
+  // Maps browser KeyboardEvent.code (the physical key position, independent
+  // of keyboard layout/Shift state) to the same key-name spelling Wails'
   // accelerator parser accepts (github.com/wailsapp/wails/v3 pkg/application
   // keys.go's `namedKeys`) - modifiers are handled separately below via the
   // event's own modifier flags.
-  const NAMED_KEY_MAP: Record<string, string> = {
+  //
+  // This must key off .code, not .key: Wails' macOS backend (Carbon's
+  // RegisterEventHotKey, see global_shortcut_darwin.go's macKeyCodes) binds
+  // *hardware* key codes and only recognizes plain, unshifted glyphs (e.g.
+  // "'", never the shifted "\""). .key reflects the actual character the
+  // active layout+Shift state produces - so on a Turkish layout, Shift+' can
+  // come through as e.key === "\"" with no way to map it back to a
+  // registerable key. .code reports the physical key itself (e.g. "Quote")
+  // regardless of layout, which is exactly what the backend expects; a
+  // Shift-combo then comes through correctly as a Shift *modifier* plus the
+  // base key (e.g. Cmd+Shift+2) instead of an unsupported literal symbol.
+  const CODE_KEY_MAP: Record<string, string> = {
+    Backquote: "`",
+    Minus: "-",
+    Equal: "=",
+    BracketLeft: "[",
+    BracketRight: "]",
+    Backslash: "\\",
+    Semicolon: ";",
+    Quote: "'",
+    Comma: ",",
+    Period: ".",
+    Slash: "/",
     Backspace: "backspace",
     Tab: "tab",
     Enter: "enter",
@@ -129,7 +152,7 @@
     ArrowRight: "right",
     ArrowUp: "up",
     ArrowDown: "down",
-    " ": "space",
+    Space: "space",
     Delete: "delete",
     Home: "home",
     End: "end",
@@ -137,8 +160,22 @@
     PageDown: "page down",
     NumLock: "numlock",
   };
-  const IGNORED_CAPTURE_KEYS = new Set(["Meta", "Control", "Alt", "Shift", "AltGraph", "CapsLock", "Dead", "Unidentified"]);
-  const FUNCTION_KEY = /^f([1-9]|[12]\d|3[0-5])$/;
+  const IGNORED_CAPTURE_CODES = new Set([
+    "MetaLeft",
+    "MetaRight",
+    "ControlLeft",
+    "ControlRight",
+    "AltLeft",
+    "AltRight",
+    "ShiftLeft",
+    "ShiftRight",
+    "CapsLock",
+  ]);
+  // macKeyCodes on the Go side only goes up to f20 - matching that here
+  // means an unsupported F21+ key hits the same friendly error below
+  // instead of a confusing round-trip failure from the backend.
+  const CODE_FUNCTION_KEY = /^F([1-9]|1\d|20)$/;
+  const FUNCTION_KEY = /^f([1-9]|1\d|20)$/;
 
   function prettyKey(key: string): string {
     if (key.length === 1) return key.toUpperCase();
@@ -152,13 +189,23 @@
       stopCapture();
       return;
     }
-    if (IGNORED_CAPTURE_KEYS.has(e.key)) return;
+    if (IGNORED_CAPTURE_CODES.has(e.code)) return;
 
     let key: string | null = null;
-    if (NAMED_KEY_MAP[e.key]) key = NAMED_KEY_MAP[e.key];
-    else if (FUNCTION_KEY.test(e.key)) key = e.key.toLowerCase();
-    else if (e.key.length === 1) key = e.key.toLowerCase();
-    if (!key) return;
+    if (CODE_KEY_MAP[e.code]) key = CODE_KEY_MAP[e.code];
+    else if (CODE_FUNCTION_KEY.test(e.code)) key = e.code.toLowerCase();
+    else if (/^Key[A-Z]$/.test(e.code)) key = e.code.slice(3).toLowerCase();
+    else if (/^Digit[0-9]$/.test(e.code)) key = e.code.slice(5);
+    if (!key) {
+      // Genuinely unsupported physical key - e.g. the ISO-only extra key
+      // next to Enter/Quote some non-US keyboards have (code
+      // "IntlBackslash", producing '"' on a Turkish layout): Wails' macOS
+      // backend (Carbon's RegisterEventHotKey) only has virtual-keycode
+      // mappings for standard ANSI-position keys, so this can't be
+      // registered as a global shortcut no matter what modifiers are held.
+      hotkeyError = "Bu tuş sistem geneli kısayol olarak desteklenmiyor. Lütfen farklı bir tuş deneyin (harf, rakam veya fonksiyon tuşu önerilir).";
+      return;
+    }
 
     const modifiers: string[] = [];
     if (e.metaKey) modifiers.push("Cmd");
