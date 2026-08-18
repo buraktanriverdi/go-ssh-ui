@@ -4,6 +4,7 @@
   import { AppearanceService, HotkeyWindowService } from "../../bindings/go-ssh-ui";
   import { WindowBackdrop, type HotkeyWindowSettings } from "../../bindings/go-ssh-ui";
   import { appearance, ACCENT_PRESETS, setOpacity, setBlur, setAccent, resetAppearance } from "../lib/appearance.svelte";
+  import { terminalDefaults, FONT_SIZE_RANGE, setDefaultTerminalFontSize } from "../lib/terminalZoom.svelte";
 
   function normalized(hex: string) {
     return hex.trim().toLowerCase();
@@ -283,6 +284,30 @@
       <p class="muted hint">
         0, diyalog ve panellerdeki ek bulanıklığı tamamen kapatır (en keskin görünüm). Pencerenin tüm arkaplanını
         etkileyen native bulanıklık ayrı bir ayar - aşağıda.
+      </p>
+    </div>
+  </div>
+
+  <div class="glass-panel settings-card">
+    <h3>Terminal</h3>
+
+    <div class="field">
+      <div class="row between">
+        <label for="terminal-font-size-range">Yazı boyutu</label>
+        <span class="muted mono value-badge">{terminalDefaults.fontSize}px</span>
+      </div>
+      <input
+        id="terminal-font-size-range"
+        type="range"
+        min={FONT_SIZE_RANGE[0]}
+        max={FONT_SIZE_RANGE[1]}
+        step="1"
+        value={terminalDefaults.fontSize}
+        oninput={(e) => setDefaultTerminalFontSize(Number(e.currentTarget.value))}
+      />
+      <p class="muted hint">
+        Yeni açılan terminallerin başlangıç yazı boyutu. Açık olan terminalleri etkilemez - her terminal kendi
+        boyutunu Cmd+=/Cmd+-/Cmd+0 ile veya sağ tık menüsünden ayrı ayrı değiştirir.
       </p>
     </div>
   </div>

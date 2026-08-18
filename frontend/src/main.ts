@@ -2,8 +2,10 @@ import { mount } from 'svelte'
 import './styles/glass.css'
 import App from './App.svelte'
 import { loadAppearance } from './lib/appearance.svelte'
+import { loadDefaultTerminalFontSize } from './lib/terminalZoom.svelte'
 
 loadAppearance()
+loadDefaultTerminalFontSize()
 
 // The hotkey window (main.go's second window, HotkeyWindowService) loads
 // this same bundle with ?mode=hotkey - it mounts the exact same <App/> (so

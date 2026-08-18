@@ -10,6 +10,7 @@
   import PromptDialog from "./PromptDialog.svelte";
   import HostKeyDialog from "./HostKeyDialog.svelte";
   import RecordReviewDialog from "./RecordReviewDialog.svelte";
+  import { terminalDefaults, clampFontSize } from "../lib/terminalZoom.svelte";
 
   export type TerminalStatus = "connecting" | "connected" | "closed";
 
@@ -49,6 +50,14 @@
   let recordLabel: string | null = $state(null);
   let recordSnapshot: Snapshot | null = $state(null);
 
+  let contextMenu: { x: number; y: number } | null = $state(null);
+
+  // Seeded from the Ayarlar-configured default at the moment this pane is
+  // created, then owned entirely by this instance from there on - Cmd+=/
+  // Cmd+-/Cmd+0 (attachCustomKeyEventHandler below) and the right-click menu
+  // only ever resize *this* terminal, never every open tab at once.
+  let fontSize = $state(clampFontSize(terminalDefaults.fontSize));
+
   const unsubs: (() => void)[] = [];
 
   function setStatus(next: TerminalStatus) {
@@ -59,7 +68,7 @@
   onMount(() => {
     term = new Terminal({
       fontFamily: "ui-monospace, SF Mono, Menlo, monospace",
-      fontSize: 13,
+      fontSize,
       cursorBlink: true,
       allowTransparency: true,
       theme: { background: "#00000000" },
@@ -73,6 +82,35 @@
       if (sessionId) TerminalService.Write(sessionId, data).catch(() => {});
     });
 
+    // Cmd+=/Cmd+-/Cmd+0 zoom, scoped to this terminal: xterm only calls this
+    // for keydowns its own (focused) textarea receives, so an unfocused
+    // background tab's terminal never reacts to another tab's shortcut.
+    // Returning false stops xterm from treating the combo as normal input
+    // (which would otherwise send it straight to the shell). xterm invokes
+    // this for both keydown and keyup, so non-keydown events must pass
+    // through untouched rather than being swallowed twice.
+    term.attachCustomKeyEventHandler((e) => {
+      if (e.type !== "keydown" || !e.metaKey || e.ctrlKey || e.altKey) return true;
+      switch (e.key) {
+        case "=":
+        case "+":
+          e.preventDefault();
+          zoomIn();
+          return false;
+        case "-":
+        case "_":
+          e.preventDefault();
+          zoomOut();
+          return false;
+        case "0":
+          e.preventDefault();
+          resetZoom();
+          return false;
+        default:
+          return true;
+      }
+    });
+
     resizeObserver = new ResizeObserver(() => {
       fitAddon.fit();
       if (sessionId) TerminalService.Resize(sessionId, term.cols, term.rows).catch(() => {});
@@ -81,6 +119,53 @@
 
     connect();
   });
+
+  // Refitting after the size change (rather than just setting the option) is
+  // what keeps cols/rows - and therefore the actual PTY size sent via
+  // Resize - in sync with the now-different character grid.
+  $effect(() => {
+    const size = fontSize;
+    if (!term) return;
+    term.options.fontSize = size;
+    fitAddon.fit();
+    if (sessionId) TerminalService.Resize(sessionId, term.cols, term.rows).catch(() => {});
+  });
+
+  function zoomIn() {
+    fontSize = clampFontSize(fontSize + 1);
+  }
+
+  function zoomOut() {
+    fontSize = clampFontSize(fontSize - 1);
+  }
+
+  function resetZoom() {
+    fontSize = clampFontSize(terminalDefaults.fontSize);
+  }
+
+  function openContextMenu(e: MouseEvent) {
+    e.preventDefault();
+    contextMenu = { x: e.clientX, y: e.clientY };
+  }
+
+  function closeContextMenu() {
+    contextMenu = null;
+  }
+
+  function menuZoomIn() {
+    zoomIn();
+    closeContextMenu();
+  }
+
+  function menuZoomOut() {
+    zoomOut();
+    closeContextMenu();
+  }
+
+  function menuResetZoom() {
+    resetZoom();
+    closeContextMenu();
+  }
 
   async function connect() {
     // Subscriptions go up before the Connect call is even sent, so no event
@@ -168,10 +253,16 @@
     }
     term?.dispose();
   });
+
+  function handleMenuKeydown(e: KeyboardEvent) {
+    if (contextMenu && e.key === "Escape") closeContextMenu();
+  }
 </script>
 
+<svelte:window onkeydown={handleMenuKeydown} />
+
 <div class="terminal-wrap">
-  <div class="terminal-container" bind:this={container}></div>
+  <div class="terminal-container" bind:this={container} oncontextmenu={openContextMenu}></div>
   {#if local && status === "connected"}
     <div class="record-controls">
       {#if recording && recordLabel}
@@ -213,6 +304,15 @@
   <RecordReviewDialog snapshot={recordSnapshot} onDone={() => (recordSnapshot = null)} onSaved={onHostSaved} />
 {/if}
 
+{#if contextMenu}
+  <div class="context-menu-backdrop" onclick={closeContextMenu} oncontextmenu={(e) => e.preventDefault()}></div>
+  <div class="context-menu glass-panel" style="left: {contextMenu.x}px; top: {contextMenu.y}px;">
+    <button type="button" onclick={menuZoomIn}>Yazıyı Büyüt</button>
+    <button type="button" onclick={menuZoomOut}>Yazıyı Küçült</button>
+    <button type="button" onclick={menuResetZoom}>Yazı Boyutunu Sıfırla</button>
+  </div>
+{/if}
+
 <style>
   .terminal-wrap {
     height: 100%;
@@ -223,7 +323,7 @@
   }
   .terminal-container :global(.xterm) {
     height: 100%;
-    padding: 8px 12px 24px;
+    padding: 8px 12px 12px;
   }
   /* xterm.css hardcodes .xterm-viewport's background to solid #000 (for
      opaque scrollbar rendering on macOS) - that wins over the Terminal's
@@ -298,5 +398,31 @@
     50% {
       opacity: 0.35;
     }
+  }
+  .context-menu-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+  }
+  .context-menu {
+    position: fixed;
+    z-index: 11;
+    display: flex;
+    flex-direction: column;
+    padding: 4px;
+    min-width: 190px;
+    box-shadow: var(--surface-shadow);
+  }
+  .context-menu button {
+    justify-content: flex-start;
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: 6px 10px;
+    font-size: 12.5px;
+    text-align: left;
+  }
+  .context-menu button:hover {
+    background: var(--surface-bg-strong);
   }
 </style>
