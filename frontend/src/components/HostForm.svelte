@@ -4,6 +4,7 @@
   import type { Files } from "../../bindings/go-ssh-ui/internal/configx/models";
   import type { PasswordEntry } from "../../bindings/go-ssh/password/models";
   import TargetFilePicker from "./TargetFilePicker.svelte";
+  import { t } from "../lib/i18n/i18n.svelte";
 
   let {
     files,
@@ -193,14 +194,14 @@
 </script>
 
 <dialog bind:this={dialog} class="glass-panel host-dialog">
-  <h3>{mode === "add" ? "Host Ekle" : "Hostu Düzenle"}</h3>
+  <h3>{mode === "add" ? t("hostForm.title.add") : t("hostForm.title.edit")}</h3>
   <form onsubmit={submit}>
     <div class="field">
-      <label for="host-name">Ad</label>
+      <label for="host-name">{t("hostForm.fields.name")}</label>
       <input id="host-name" type="text" bind:value={name} required />
     </div>
     <div class="field">
-      <label for="host-desc">Açıklama</label>
+      <label for="host-desc">{t("hostForm.fields.description")}</label>
       <input id="host-desc" type="text" bind:value={description} />
     </div>
 
@@ -211,39 +212,39 @@
     {/if}
 
     <div class="row mode-toggle">
-      <button type="button" class={!advanced ? "primary" : ""} onclick={() => (advanced = false)}>Basit</button>
-      <button type="button" class={advanced ? "primary" : ""} onclick={() => (advanced = true)}>Gelişmiş (ham komut)</button>
+      <button type="button" class={!advanced ? "primary" : ""} onclick={() => (advanced = false)}>{t("hostForm.mode.simple")}</button>
+      <button type="button" class={advanced ? "primary" : ""} onclick={() => (advanced = true)}>{t("hostForm.mode.advanced")}</button>
     </div>
 
     {#if !advanced}
       <div class="field">
-        <label for="host-addr">Adres</label>
+        <label for="host-addr">{t("hostForm.simple.address")}</label>
         <input id="host-addr" type="text" bind:value={hostAddr} placeholder="prod.example.com" />
       </div>
       <div class="row">
         <div class="field" style="flex: 1">
-          <label for="host-port">Port</label>
+          <label for="host-port">{t("hostForm.simple.port")}</label>
           <input id="host-port" type="number" bind:value={port} placeholder="22" />
         </div>
         <div class="field" style="flex: 2">
-          <label for="host-user">Kullanıcı</label>
+          <label for="host-user">{t("hostForm.simple.user")}</label>
           <input id="host-user" type="text" bind:value={user} />
         </div>
       </div>
       <div class="field">
-        <label for="host-auth">Kimlik doğrulama</label>
+        <label for="host-auth">{t("hostForm.simple.auth.label")}</label>
         <select id="host-auth" bind:value={authMethod}>
-          <option value="">Seçilmedi</option>
-          <option value="password">Kayıtlı şifre</option>
-          <option value="key">SSH anahtarı</option>
-          <option value="agent">ssh-agent</option>
+          <option value="">{t("hostForm.simple.auth.none")}</option>
+          <option value="password">{t("hostForm.simple.auth.password")}</option>
+          <option value="key">{t("hostForm.simple.auth.key")}</option>
+          <option value="agent">{t("hostForm.simple.auth.agent")}</option>
         </select>
       </div>
       {#if authMethod === "password"}
         <div class="field">
-          <label for="host-pwid">Şifre</label>
+          <label for="host-pwid">{t("hostForm.simple.password")}</label>
           <select id="host-pwid" bind:value={passwordId}>
-            <option value="">Seç…</option>
+            <option value="">{t("hostForm.selectPlaceholder")}</option>
             {#each passwords as p (p.id)}
               <option value={p.id}>{p.id} — {p.description}</option>
             {/each}
@@ -251,32 +252,32 @@
         </div>
       {:else if authMethod === "key"}
         <div class="field">
-          <label for="host-identity">Anahtar dosyası</label>
+          <label for="host-identity">{t("hostForm.simple.identityFile")}</label>
           <input id="host-identity" type="text" bind:value={identityFile} placeholder="~/.ssh/id_ed25519" />
         </div>
       {/if}
       <div class="field">
-        <label for="host-jump">Jump host zinciri (sırayla)</label>
+        <label for="host-jump">{t("hostForm.simple.jump.label")}</label>
         <select id="host-jump" multiple bind:value={jumpVia} size={Math.min(4, Math.max(2, allHosts.length))}>
           {#each allHosts.filter((h) => h.id !== id) as h (h.id)}
             <option value={h.id}>{h.name}</option>
           {/each}
         </select>
-        <p class="muted" style="margin-top: 4px">Ctrl/Cmd ile birden çok host seçilebilir.</p>
+        <p class="muted" style="margin-top: 4px">{t("hostForm.simple.jump.hint")}</p>
       </div>
     {:else}
       <div class="row mode-toggle">
-        <button type="button" class={commandMode === "single" ? "primary" : ""} onclick={() => (commandMode = "single")}>Tek komut</button>
-        <button type="button" class={commandMode === "multi" ? "primary" : ""} onclick={() => (commandMode = "multi")}>Çok adımlı</button>
+        <button type="button" class={commandMode === "single" ? "primary" : ""} onclick={() => (commandMode = "single")}>{t("hostForm.advanced.commandMode.single")}</button>
+        <button type="button" class={commandMode === "multi" ? "primary" : ""} onclick={() => (commandMode = "multi")}>{t("hostForm.advanced.commandMode.multi")}</button>
       </div>
       {#if commandMode === "single"}
         <div class="field">
-          <label for="host-command">Komut</label>
+          <label for="host-command">{t("hostForm.advanced.command")}</label>
           <input id="host-command" type="text" class="mono" bind:value={command} placeholder="ssh user@host" />
         </div>
       {:else}
         <div class="field">
-          <label for="host-steps">Adımlar</label>
+          <label for="host-steps">{t("hostForm.advanced.steps")}</label>
           <div id="host-steps">
             {#each steps as _step, i}
               <div class="row step-row">
@@ -286,8 +287,8 @@
             {/each}
           </div>
           <div class="row" style="margin-top: 6px">
-            <button type="button" onclick={addStep}>+ Adım ekle</button>
-            <button type="button" onclick={openHelper}>Ekle… (SEND/SENDPASS/WAIT/EXPECT)</button>
+            <button type="button" onclick={addStep}>{t("hostForm.advanced.addStep")}</button>
+            <button type="button" onclick={openHelper}>{t("hostForm.advanced.openHelper")}</button>
           </div>
         </div>
       {/if}
@@ -295,36 +296,36 @@
 
     {#if error}<p class="error-text">{error}</p>{/if}
     <div class="row end">
-      <button type="button" onclick={() => dialog.close()}>Vazgeç</button>
-      <button type="submit" class="primary" disabled={busy}>Kaydet</button>
+      <button type="button" onclick={() => dialog.close()}>{t("hostForm.buttons.cancel")}</button>
+      <button type="submit" class="primary" disabled={busy}>{t("hostForm.buttons.save")}</button>
     </div>
   </form>
 </dialog>
 
 <dialog bind:this={helperDialog} class="glass-panel">
-  <h3>Adım Ekle</h3>
+  <h3>{t("hostForm.helper.title")}</h3>
   <div class="field">
     <label>
-      <input type="radio" name="helper-type" value="send" bind:group={helperType} /> Metin gönder (SEND:)
+      <input type="radio" name="helper-type" value="send" bind:group={helperType} /> {t("hostForm.helper.types.send")}
     </label>
     <label>
-      <input type="radio" name="helper-type" value="sendpass" bind:group={helperType} /> Kayıtlı şifre gönder (SENDPASS:)
+      <input type="radio" name="helper-type" value="sendpass" bind:group={helperType} /> {t("hostForm.helper.types.sendpass")}
     </label>
     <label>
-      <input type="radio" name="helper-type" value="wait" bind:group={helperType} /> N saniye bekle (WAIT:)
+      <input type="radio" name="helper-type" value="wait" bind:group={helperType} /> {t("hostForm.helper.types.wait")}
     </label>
     <label>
-      <input type="radio" name="helper-type" value="expect" bind:group={helperType} /> Metin bekle (EXPECT:)
+      <input type="radio" name="helper-type" value="expect" bind:group={helperType} /> {t("hostForm.helper.types.expect")}
     </label>
     <label>
-      <input type="radio" name="helper-type" value="interact" bind:group={helperType} /> Kontrolü kullanıcıya bırak (INTERACT)
+      <input type="radio" name="helper-type" value="interact" bind:group={helperType} /> {t("hostForm.helper.types.interact")}
     </label>
   </div>
   {#if helperType === "sendpass"}
     <div class="field">
-      <label for="helper-pw">Şifre</label>
+      <label for="helper-pw">{t("hostForm.helper.password")}</label>
       <select id="helper-pw" bind:value={helperValue}>
-        <option value="">Seç…</option>
+        <option value="">{t("hostForm.selectPlaceholder")}</option>
         {#each passwords as p (p.id)}
           <option value={p.id}>{p.id} — {p.description}</option>
         {/each}
@@ -332,13 +333,13 @@
     </div>
   {:else if helperType !== "interact"}
     <div class="field">
-      <label for="helper-val">Değer</label>
+      <label for="helper-val">{t("hostForm.helper.value")}</label>
       <input id="helper-val" type="text" bind:value={helperValue} />
     </div>
   {/if}
   <div class="row end">
-    <button type="button" onclick={() => helperDialog.close()}>Vazgeç</button>
-    <button type="button" class="primary" onclick={insertHelperStep}>Ekle</button>
+    <button type="button" onclick={() => helperDialog.close()}>{t("hostForm.buttons.cancel")}</button>
+    <button type="button" class="primary" onclick={insertHelperStep}>{t("hostForm.helper.add")}</button>
   </div>
 </dialog>
 

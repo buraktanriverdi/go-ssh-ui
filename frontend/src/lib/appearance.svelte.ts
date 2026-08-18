@@ -20,15 +20,28 @@ const STORAGE_KEY = "go-ssh-ui.appearance";
 const OPACITY_RANGE = [5, 100] as const;
 const BLUR_RANGE = [0, 40] as const;
 
-export const ACCENT_PRESETS: { label: string; color: string }[] = [
-  { label: "Mavi", color: "#007aff" },
-  { label: "Mor", color: "#af52de" },
-  { label: "Pembe", color: "#ff2d55" },
-  { label: "Kırmızı", color: "#ff3b30" },
-  { label: "Turuncu", color: "#ff9500" },
-  { label: "Sarı", color: "#ffcc00" },
-  { label: "Yeşil", color: "#34c759" },
-  { label: "Grafit", color: "#8e8e93" },
+// Labels are translation keys (resolved by the consumer via t()) rather than
+// plain strings, since these presets are module-level constants that would
+// otherwise be frozen in whatever locale was active at import time.
+type AccentColorKey =
+  | "settingsView.accent.colors.blue"
+  | "settingsView.accent.colors.purple"
+  | "settingsView.accent.colors.pink"
+  | "settingsView.accent.colors.red"
+  | "settingsView.accent.colors.orange"
+  | "settingsView.accent.colors.yellow"
+  | "settingsView.accent.colors.green"
+  | "settingsView.accent.colors.graphite";
+
+export const ACCENT_PRESETS: { nameKey: AccentColorKey; color: string }[] = [
+  { nameKey: "settingsView.accent.colors.blue", color: "#007aff" },
+  { nameKey: "settingsView.accent.colors.purple", color: "#af52de" },
+  { nameKey: "settingsView.accent.colors.pink", color: "#ff2d55" },
+  { nameKey: "settingsView.accent.colors.red", color: "#ff3b30" },
+  { nameKey: "settingsView.accent.colors.orange", color: "#ff9500" },
+  { nameKey: "settingsView.accent.colors.yellow", color: "#ffcc00" },
+  { nameKey: "settingsView.accent.colors.green", color: "#34c759" },
+  { nameKey: "settingsView.accent.colors.graphite", color: "#8e8e93" },
 ];
 
 export const appearance: Appearance = $state({ ...DEFAULTS });

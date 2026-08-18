@@ -7,6 +7,7 @@
   import type { Files } from "../../bindings/go-ssh-ui/internal/configx/models";
   import type { Snapshot, Step } from "../../bindings/go-ssh-ui/internal/record/models";
   import TargetFilePicker from "./TargetFilePicker.svelte";
+  import { t } from "../lib/i18n/i18n.svelte";
 
   // Faz 5 "Kayıt": TerminalPane opens this once recording stops and at
   // least one step was captured. Saves the host directly (category + target
@@ -128,9 +129,9 @@
     error = null;
     busy = true;
     try {
-      if (rows.length === 0) throw new Error("En az bir adım olmalı");
+      if (rows.length === 0) throw new Error(t("recordReviewDialog.errors.noSteps"));
       const category = categoryOptions[Number(categoryChoice)];
-      if (!category) throw new Error("Bir kategori seç");
+      if (!category) throw new Error(t("recordReviewDialog.errors.noCategory"));
 
       const lines: string[] = [];
       for (const row of rows) {
@@ -140,14 +141,14 @@
           continue;
         }
         const id = row.choice === NEW ? row.newId.trim() : row.choice;
-        if (!id) throw new Error(`"${row.label}" için bir şifre kimliği girin`);
+        if (!id) throw new Error(t("recordReviewDialog.errors.missingPasswordId", { label: row.label }));
         if (row.choice === NEW) {
           await PasswordService.Add(id, row.newDesc, row.secret);
         }
         lines.push(`EXPECT:${row.label.toLowerCase()}`);
         lines.push(`SENDPASS:${id}`);
       }
-      if (lines.length === 0) throw new Error("En az bir komut olmalı");
+      if (lines.length === 0) throw new Error(t("recordReviewDialog.errors.noCommands"));
 
       const host: Host = {
         id: "",
@@ -167,23 +168,23 @@
 </script>
 
 <dialog bind:this={dialog} class="glass-panel record-dialog" onclose={onDone}>
-  <h3>Kayıttan Host Oluştur</h3>
-  <p class="muted">Algılananları gözden geçir - hiçbir şey onaylamadan kaydedilmez.</p>
+  <h3>{t("recordReviewDialog.title")}</h3>
+  <p class="muted">{t("recordReviewDialog.subtitle")}</p>
   <form onsubmit={submit}>
     <div class="field">
-      <label for="rec-name">Host adı</label>
+      <label for="rec-name">{t("recordReviewDialog.nameLabel")}</label>
       <input id="rec-name" type="text" bind:value={name} required />
     </div>
 
     {#if loading}
-      <p class="muted">Yükleniyor…</p>
+      <p class="muted">{t("recordReviewDialog.loading")}</p>
     {:else}
       {#if files}<TargetFilePicker {files} bind:value={targetFile} />{/if}
       {#if categoryOptions.length === 0}
-        <p class="error-text">Henüz kategori yok - önce Hostlar sekmesinden bir kategori oluştur.</p>
+        <p class="error-text">{t("recordReviewDialog.category.empty")}</p>
       {:else}
         <div class="field">
-          <label for="rec-category">Kategori</label>
+          <label for="rec-category">{t("recordReviewDialog.category.label")}</label>
           <select id="rec-category" bind:value={categoryChoice}>
             {#each categoryOptions as opt, i}
               <option value={String(i)}>{opt.label}</option>
@@ -193,12 +194,14 @@
       {/if}
 
       <div class="field">
-        <p class="section-label">Adımlar</p>
+        <p class="section-label">{t("recordReviewDialog.steps.sectionLabel")}</p>
         {#each rows as row, i}
           <div class="glass-panel step-box">
             <div class="row between step-head">
-              <span class="mono muted step-kind">{row.kind === "exec" ? "Komut" : "Şifre"}</span>
-              <button type="button" class="icon-btn danger" onclick={() => removeRow(i)} title="Kaldır">
+              <span class="mono muted step-kind"
+                >{row.kind === "exec" ? t("recordReviewDialog.steps.kindExec") : t("recordReviewDialog.steps.kindSendpass")}</span
+              >
+              <button type="button" class="icon-btn danger" onclick={() => removeRow(i)} title={t("recordReviewDialog.steps.removeTitle")}>
                 <Trash2 size={13} strokeWidth={2} />
               </button>
             </div>
@@ -207,9 +210,9 @@
             {:else}
               <p class="mono muted step-label">{row.label}</p>
               <div class="field">
-                <label for={`rec-choice-${i}`}>Şifre</label>
+                <label for={`rec-choice-${i}`}>{t("recordReviewDialog.password.label")}</label>
                 <select id={`rec-choice-${i}`} bind:value={row.choice}>
-                  <option value={NEW}>Yeni şifre oluştur</option>
+                  <option value={NEW}>{t("recordReviewDialog.password.newOption")}</option>
                   {#each passwords as p (p.id)}
                     <option value={p.id}>{p.id} — {p.description}</option>
                   {/each}
@@ -218,16 +221,16 @@
               {#if row.choice === NEW}
                 <div class="row">
                   <div class="field" style="flex: 1">
-                    <label for={`rec-id-${i}`}>Kimlik (id)</label>
+                    <label for={`rec-id-${i}`}>{t("recordReviewDialog.password.idLabel")}</label>
                     <input id={`rec-id-${i}`} type="text" class="mono" bind:value={row.newId} required />
                   </div>
                   <div class="field" style="flex: 2">
-                    <label for={`rec-desc-${i}`}>Açıklama</label>
+                    <label for={`rec-desc-${i}`}>{t("recordReviewDialog.password.descLabel")}</label>
                     <input id={`rec-desc-${i}`} type="text" bind:value={row.newDesc} />
                   </div>
                 </div>
                 <div class="field">
-                  <label for={`rec-secret-${i}`}>Yakalanan değer</label>
+                  <label for={`rec-secret-${i}`}>{t("recordReviewDialog.password.valueLabel")}</label>
                   <div class="row">
                     <input
                       id={`rec-secret-${i}`}
@@ -240,7 +243,7 @@
                       type="button"
                       class="icon-btn"
                       onclick={() => (row.reveal = !row.reveal)}
-                      title={row.reveal ? "Gizle" : "Göster"}
+                      title={row.reveal ? t("recordReviewDialog.password.hide") : t("recordReviewDialog.password.show")}
                     >
                       {#if row.reveal}<EyeOff size={14} strokeWidth={2} />{:else}<Eye size={14} strokeWidth={2} />{/if}
                     </button>
@@ -255,8 +258,10 @@
 
     {#if error}<p class="error-text">{error}</p>{/if}
     <div class="row end">
-      <button type="button" onclick={() => dialog.close()}>Vazgeç</button>
-      <button type="submit" class="primary" disabled={busy || loading || categoryOptions.length === 0}>Host Oluştur</button>
+      <button type="button" onclick={() => dialog.close()}>{t("recordReviewDialog.buttons.cancel")}</button>
+      <button type="submit" class="primary" disabled={busy || loading || categoryOptions.length === 0}
+        >{t("recordReviewDialog.buttons.create")}</button
+      >
     </div>
   </form>
 </dialog>

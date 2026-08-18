@@ -11,6 +11,7 @@
   import HostKeyDialog from "./HostKeyDialog.svelte";
   import RecordReviewDialog from "./RecordReviewDialog.svelte";
   import { terminalDefaults, clampFontSize } from "../lib/terminalZoom.svelte";
+  import { t } from "../lib/i18n/i18n.svelte";
 
   export type TerminalStatus = "connecting" | "connected" | "closed";
 
@@ -200,7 +201,10 @@
       unsubs.push(
         Events.On("record:event", (ev) => {
           if (ev.data.sessionId !== sessionId) return;
-          recordLabel = ev.data.kind === "prompt-detected" ? `"${ev.data.label}" bekleniyor` : "Yakalandı, devam ediliyor…";
+          recordLabel =
+            ev.data.kind === "prompt-detected"
+              ? t("terminalPane.record.waitingFor", { label: ev.data.label })
+              : t("terminalPane.record.captured");
         }),
       );
     }
@@ -272,21 +276,21 @@
         type="button"
         class="record-toggle {recording ? 'active' : ''}"
         onclick={toggleRecording}
-        title="Bu terminaldeki ssh girişini host+şifre olarak kaydet"
+        title={t("terminalPane.record.toggleTitle")}
       >
         <span class="record-dot"></span>
-        Kayıt
+        {t("terminalPane.record.toggleLabel")}
       </button>
     </div>
   {/if}
   {#if status === "connecting"}
     <div class="status-overlay">
-      <span class="muted">{local ? "Terminal açılıyor…" : `${hostName} bağlanıyor…`}</span>
+      <span class="muted">{local ? t("terminalPane.status.connectingLocal") : t("terminalPane.status.connectingTo", { host: hostName })}</span>
     </div>
   {:else if status === "closed"}
     <div class="status-overlay {closeError ? 'error' : ''}">
       <span class={closeError ? "error-text" : "muted"}>
-        {closeError ? `Bağlantı kapandı: ${closeError}` : "Oturum sona erdi"}
+        {closeError ? t("terminalPane.status.closedWithError", { error: closeError }) : t("terminalPane.status.closed")}
       </span>
     </div>
   {/if}
@@ -307,9 +311,9 @@
 {#if contextMenu}
   <div class="context-menu-backdrop" onclick={closeContextMenu} oncontextmenu={(e) => e.preventDefault()}></div>
   <div class="context-menu glass-panel" style="left: {contextMenu.x}px; top: {contextMenu.y}px;">
-    <button type="button" onclick={menuZoomIn}>Yazıyı Büyüt</button>
-    <button type="button" onclick={menuZoomOut}>Yazıyı Küçült</button>
-    <button type="button" onclick={menuResetZoom}>Yazı Boyutunu Sıfırla</button>
+    <button type="button" onclick={menuZoomIn}>{t("terminalPane.contextMenu.zoomIn")}</button>
+    <button type="button" onclick={menuZoomOut}>{t("terminalPane.contextMenu.zoomOut")}</button>
+    <button type="button" onclick={menuResetZoom}>{t("terminalPane.contextMenu.resetZoom")}</button>
   </div>
 {/if}
 

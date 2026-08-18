@@ -5,6 +5,13 @@
   import { WindowBackdrop, type HotkeyWindowSettings } from "../../bindings/go-ssh-ui";
   import { appearance, ACCENT_PRESETS, setOpacity, setBlur, setAccent, resetAppearance } from "../lib/appearance.svelte";
   import { terminalDefaults, FONT_SIZE_RANGE, setDefaultTerminalFontSize } from "../lib/terminalZoom.svelte";
+  import { t, i18n, setLocale, type Locale } from "../lib/i18n/i18n.svelte";
+
+  const LANGUAGE_OPTIONS: { value: Locale | "system"; labelKey: "settingsView.language.systemLabel" | "settingsView.language.turkishLabel" | "settingsView.language.englishLabel" }[] = [
+    { value: "system", labelKey: "settingsView.language.systemLabel" },
+    { value: "tr", labelKey: "settingsView.language.turkishLabel" },
+    { value: "en", labelKey: "settingsView.language.englishLabel" },
+  ];
 
   function normalized(hex: string) {
     return hex.trim().toLowerCase();
@@ -17,14 +24,10 @@
   // both the main window's picker below and the hotkey window's (further
   // down) - same three choices, same restart caveat, different persisted
   // setting underneath (AppearanceService vs. HotkeyWindowService).
-  const BACKDROP_OPTIONS: { value: string; label: string; hint: string }[] = [
-    { value: "translucent", label: "Bulanık (vibrancy)", hint: "Klasik frosted-glass macOS görünümü." },
-    {
-      value: "liquidGlass",
-      label: "Liquid Glass",
-      hint: "Apple'ın yeni camsı efekti (macOS 15+; eski sürümlerde otomatik Bulanık'a döner).",
-    },
-    { value: "transparent", label: "Şeffaf (bulanıksız)", hint: "Aynı derecede saydam, ama keskin - hiç bulanıklık yok." },
+  const BACKDROP_OPTIONS: { value: string; labelKey: "settingsView.backdrop.options.translucent.label" | "settingsView.backdrop.options.liquidGlass.label" | "settingsView.backdrop.options.transparent.label"; hintKey: "settingsView.backdrop.options.translucent.hint" | "settingsView.backdrop.options.liquidGlass.hint" | "settingsView.backdrop.options.transparent.hint" }[] = [
+    { value: "translucent", labelKey: "settingsView.backdrop.options.translucent.label", hintKey: "settingsView.backdrop.options.translucent.hint" },
+    { value: "liquidGlass", labelKey: "settingsView.backdrop.options.liquidGlass.label", hintKey: "settingsView.backdrop.options.liquidGlass.hint" },
+    { value: "transparent", labelKey: "settingsView.backdrop.options.transparent.label", hintKey: "settingsView.backdrop.options.transparent.hint" },
   ];
 
   let backdrop = $state("translucent");
@@ -204,7 +207,7 @@
       // backend (Carbon's RegisterEventHotKey) only has virtual-keycode
       // mappings for standard ANSI-position keys, so this can't be
       // registered as a global shortcut no matter what modifiers are held.
-      hotkeyError = "Bu tuş sistem geneli kısayol olarak desteklenmiyor. Lütfen farklı bir tuş deneyin (harf, rakam veya fonksiyon tuşu önerilir).";
+      hotkeyError = t("settingsView.hotkey.errors.unsupportedKey");
       return;
     }
 
@@ -218,7 +221,7 @@
     // would swallow that key everywhere, all the time - only function keys
     // are common/safe enough to allow unmodified.
     if (modifiers.length === 0 && !FUNCTION_KEY.test(key)) {
-      hotkeyError = "Bu kısayol için en az bir değiştirici tuş (Cmd/Ctrl/Option/Shift) gerekli.";
+      hotkeyError = t("settingsView.hotkey.errors.needsModifier");
       return;
     }
 
@@ -241,18 +244,15 @@
 </script>
 
 <div class="settings-view">
-  <h2>Ayarlar</h2>
-  <p class="muted section-intro">
-    Pencerenin saydamlığını, bulanıklığını ve renk tonunu buradan ayarlayabilirsin. Saydamlık/bulanıklık/renk anında
-    uygulanır; native pencere bulanıklığı bir sonraki açılışta devreye girer.
-  </p>
+  <h2>{t("settingsView.title")}</h2>
+  <p class="muted section-intro">{t("settingsView.intro")}</p>
 
   <div class="glass-panel settings-card">
-    <h3>Görünüm</h3>
+    <h3>{t("settingsView.appearance.heading")}</h3>
 
     <div class="field">
       <div class="row between">
-        <label for="opacity-range">Arka plan saydamlığı</label>
+        <label for="opacity-range">{t("settingsView.appearance.opacityLabel")}</label>
         <span class="muted mono value-badge">%{appearance.opacity}</span>
       </div>
       <input
@@ -264,12 +264,12 @@
         value={appearance.opacity}
         oninput={(e) => setOpacity(Number(e.currentTarget.value))}
       />
-      <p class="muted hint">Düşük değer pencere arkasının (ve terminal arkaplanının) daha fazla görünmesini sağlar.</p>
+      <p class="muted hint">{t("settingsView.appearance.opacityHint")}</p>
     </div>
 
     <div class="field">
       <div class="row between">
-        <label for="blur-range">Panel bulanıklığı</label>
+        <label for="blur-range">{t("settingsView.appearance.blurLabel")}</label>
         <span class="muted mono value-badge">{appearance.blur}px</span>
       </div>
       <input
@@ -281,19 +281,16 @@
         value={appearance.blur}
         oninput={(e) => setBlur(Number(e.currentTarget.value))}
       />
-      <p class="muted hint">
-        0, diyalog ve panellerdeki ek bulanıklığı tamamen kapatır (en keskin görünüm). Pencerenin tüm arkaplanını
-        etkileyen native bulanıklık ayrı bir ayar - aşağıda.
-      </p>
+      <p class="muted hint">{t("settingsView.appearance.blurHint")}</p>
     </div>
   </div>
 
   <div class="glass-panel settings-card">
-    <h3>Terminal</h3>
+    <h3>{t("settingsView.terminal.heading")}</h3>
 
     <div class="field">
       <div class="row between">
-        <label for="terminal-font-size-range">Yazı boyutu</label>
+        <label for="terminal-font-size-range">{t("settingsView.terminal.fontSizeLabel")}</label>
         <span class="muted mono value-badge">{terminalDefaults.fontSize}px</span>
       </div>
       <input
@@ -305,64 +302,77 @@
         value={terminalDefaults.fontSize}
         oninput={(e) => setDefaultTerminalFontSize(Number(e.currentTarget.value))}
       />
-      <p class="muted hint">
-        Yeni açılan terminallerin başlangıç yazı boyutu. Açık olan terminalleri etkilemez - her terminal kendi
-        boyutunu Cmd+=/Cmd+-/Cmd+0 ile veya sağ tık menüsünden ayrı ayrı değiştirir.
-      </p>
+      <p class="muted hint">{t("settingsView.terminal.fontSizeHint")}</p>
     </div>
   </div>
 
   <div class="glass-panel settings-card">
-    <h3>Pencere arkaplanı (native)</h3>
+    <h3>{t("settingsView.language.heading")}</h3>
+    <p class="muted section-intro">{t("settingsView.language.intro")}</p>
+    <div class="backdrop-options">
+      {#each LANGUAGE_OPTIONS as opt (opt.value)}
+        <label class="backdrop-option {(i18n.isSystem && opt.value === 'system') || (!i18n.isSystem && opt.value === i18n.locale) ? 'selected' : ''}">
+          <input
+            type="radio"
+            name="language"
+            value={opt.value}
+            checked={(i18n.isSystem && opt.value === "system") || (!i18n.isSystem && opt.value === i18n.locale)}
+            onchange={() => setLocale(opt.value)}
+          />
+          <span class="backdrop-option-text">
+            <span class="backdrop-option-label">{t(opt.labelKey)}</span>
+            {#if opt.value === "system"}<span class="muted backdrop-option-hint">{t("settingsView.language.systemHint")}</span>{/if}
+          </span>
+        </label>
+      {/each}
+    </div>
+  </div>
+
+  <div class="glass-panel settings-card">
+    <h3>{t("settingsView.backdrop.heading")}</h3>
     <div class="backdrop-options">
       {#each BACKDROP_OPTIONS as opt (opt.value)}
         <label class="backdrop-option {backdrop === opt.value ? 'selected' : ''}">
           <input type="radio" name="backdrop" value={opt.value} checked={backdrop === opt.value} onchange={() => setBackdrop(opt.value)} />
           <span class="backdrop-option-text">
-            <span class="backdrop-option-label">{opt.label}</span>
-            <span class="muted backdrop-option-hint">{opt.hint}</span>
+            <span class="backdrop-option-label">{t(opt.labelKey)}</span>
+            <span class="muted backdrop-option-hint">{t(opt.hintKey)}</span>
           </span>
         </label>
       {/each}
     </div>
-    <p class="muted hint">
-      Yukarıdaki "Panel bulanıklığı"ndan farklı: diyalog kartları değil, pencerenin arkasında görünen
-      masaüstünü/diğer pencereleri etkileyen katman bu - hepsi üstteki saydamlık ayarına uyar.
-    </p>
-    <p class="muted hint">Değişikliğin görünmesi için uygulamayı kapatıp yeniden açman gerekiyor.</p>
-    {#if backdropSaved}<p class="saved-hint">Kaydedildi - bir sonraki açılışta uygulanacak.</p>{/if}
+    <p class="muted hint">{t("settingsView.backdrop.hintDiff")}</p>
+    <p class="muted hint">{t("settingsView.backdrop.hintRestart")}</p>
+    {#if backdropSaved}<p class="saved-hint">{t("settingsView.backdrop.saved")}</p>{/if}
   </div>
 
   <div class="glass-panel settings-card">
-    <h3>Hotkey Penceresi</h3>
-    <p class="muted section-intro hotkey-intro">
-      iTerm'deki gibi: bir global kısayolla, uygulama arka plandayken bile açılıp kapanan, tek bir yerel terminal
-      içeren yüzen bir pencere.
-    </p>
+    <h3>{t("settingsView.hotkey.heading")}</h3>
+    <p class="muted section-intro hotkey-intro">{t("settingsView.hotkey.intro")}</p>
 
     <label class="hotkey-enable-row">
       <input type="checkbox" checked={hotkey.enabled} onchange={toggleHotkeyEnabled} disabled={hotkeySaving} />
-      <span>Etkin</span>
+      <span>{t("settingsView.hotkey.enabled")}</span>
     </label>
 
     <div class="field">
-      <label for="hotkey-shortcut-btn">Kısayol</label>
+      <label for="hotkey-shortcut-btn">{t("settingsView.hotkey.shortcutLabel")}</label>
       <div class="row hotkey-shortcut-row">
-        <span class="mono hotkey-shortcut-value">{hotkey.shortcut || "Ayarlanmadı"}</span>
+        <span class="mono hotkey-shortcut-value">{hotkey.shortcut || t("settingsView.hotkey.shortcutUnset")}</span>
         <button id="hotkey-shortcut-btn" type="button" class="ghost" onclick={hotkeyCapturing ? stopCapture : startCapture}>
           <KeyRound size={13} strokeWidth={2} />
-          {hotkeyCapturing ? "Tuşlara basın… (iptal: Esc)" : "Kısayolu değiştir"}
+          {hotkeyCapturing ? t("settingsView.hotkey.capturing") : t("settingsView.hotkey.changeShortcut")}
         </button>
       </div>
       {#if hotkeyError}<p class="error-text hint">{hotkeyError}</p>{/if}
       {#if hotkey.enabled && !hotkey.shortcut}
-        <p class="muted hint">Etkin ama henüz bir kısayol seçilmedi - "Kısayolu değiştir"e tıklayıp bir tuş kombinasyonuna bas.</p>
+        <p class="muted hint">{t("settingsView.hotkey.unsetHint")}</p>
       {/if}
     </div>
 
     <div class="field">
       <div class="row between">
-        <label for="hotkey-opacity">Pencere saydamlığı</label>
+        <label for="hotkey-opacity">{t("settingsView.hotkey.opacityLabel")}</label>
         <span class="muted mono value-badge">%{hotkey.opacity}</span>
       </div>
       <input
@@ -377,12 +387,12 @@
     </div>
 
     <div class="field">
-      <label for="hotkey-color">Pencere arka plan rengi</label>
+      <label for="hotkey-color">{t("settingsView.hotkey.colorLabel")}</label>
       <input id="hotkey-color" type="color" value={hotkey.bgColor} oninput={(e) => setHotkeyColor(e.currentTarget.value)} />
     </div>
 
     <div class="field">
-      <label for="hotkey-backdrop-options">Pencere arkaplanı (native)</label>
+      <label for="hotkey-backdrop-options">{t("settingsView.hotkey.backdropLabel")}</label>
       <div id="hotkey-backdrop-options" class="backdrop-options">
         {#each BACKDROP_OPTIONS as opt (opt.value)}
           <label class="backdrop-option {hotkey.backdrop === opt.value ? 'selected' : ''}">
@@ -394,35 +404,35 @@
               onchange={() => setHotkeyBackdrop(opt.value)}
             />
             <span class="backdrop-option-text">
-              <span class="backdrop-option-label">{opt.label}</span>
-              <span class="muted backdrop-option-hint">{opt.hint}</span>
+              <span class="backdrop-option-label">{t(opt.labelKey)}</span>
+              <span class="muted backdrop-option-hint">{t(opt.hintKey)}</span>
             </span>
           </label>
         {/each}
       </div>
-      <p class="muted hint">Yukarıdaki renk/saydamlık bunun üzerine biner. Değişikliğin görünmesi için uygulamayı kapatıp yeniden açman gerekiyor.</p>
+      <p class="muted hint">{t("settingsView.hotkey.backdropHint")}</p>
     </div>
 
     <div class="row between">
       <button type="button" class="ghost" onclick={testHotkeyWindow}>
         <PlayCircle size={13} strokeWidth={2} />
-        Pencereyi test et
+        {t("settingsView.hotkey.testButton")}
       </button>
-      {#if hotkeySaved}<span class="saved-hint">Kaydedildi</span>{/if}
+      {#if hotkeySaved}<span class="saved-hint">{t("settingsView.hotkey.saved")}</span>{/if}
     </div>
-    <p class="muted hint">Kısayol/renk/saydamlık anında uygulanır - pencere arkaplanı (native) hariç, yeniden başlatma gerekmez.</p>
+    <p class="muted hint">{t("settingsView.hotkey.liveHint")}</p>
   </div>
 
   <div class="glass-panel settings-card">
-    <h3>Renk tonu</h3>
+    <h3>{t("settingsView.accent.heading")}</h3>
     <div class="accent-grid">
       {#each ACCENT_PRESETS as preset (preset.color)}
         <button
           type="button"
           class="accent-swatch"
           style:background={preset.color}
-          title={preset.label}
-          aria-label={preset.label}
+          title={t(preset.nameKey)}
+          aria-label={t(preset.nameKey)}
           onclick={() => setAccent(preset.color)}
         >
           {#if normalized(appearance.accent) === preset.color}
@@ -430,7 +440,7 @@
           {/if}
         </button>
       {/each}
-      <label class="accent-swatch accent-custom" style:background={appearance.accent} title="Özel renk seç">
+      <label class="accent-swatch accent-custom" style:background={appearance.accent} title={t("settingsView.accent.customTitle")}>
         <input type="color" value={appearance.accent} oninput={(e) => setAccent(e.currentTarget.value)} />
         <Palette size={13} strokeWidth={2} color="#ffffff" />
       </label>
@@ -439,7 +449,7 @@
 
   <button type="button" class="ghost reset-btn" onclick={resetAppearance}>
     <RotateCcw size={13} strokeWidth={2} />
-    Varsayılanlara dön
+    {t("settingsView.resetButton")}
   </button>
 </div>
 

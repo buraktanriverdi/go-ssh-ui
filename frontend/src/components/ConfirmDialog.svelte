@@ -8,12 +8,14 @@
   // this is why the delete buttons looked like they did nothing. A <dialog>
   // element needs no native delegate at all (it's just DOM+CSS), which is
   // also why the add/edit forms elsewhere in this app already work fine.
+  import { t } from "../lib/i18n/i18n.svelte";
+
   let dialog: HTMLDialogElement;
   let message = $state("");
-  let confirmLabel = $state("Sil");
+  let confirmLabel = $state(t("confirmDialog.defaultConfirm"));
   let resolveFn: ((value: boolean) => void) | null = null;
 
-  export function open(msg: string, confirmText = "Sil"): Promise<boolean> {
+  export function open(msg: string, confirmText = t("confirmDialog.defaultConfirm")): Promise<boolean> {
     message = msg;
     confirmLabel = confirmText;
     dialog.showModal();
@@ -32,7 +34,7 @@
 <dialog bind:this={dialog} class="glass-panel confirm-dialog" onclose={() => respond(false)}>
   <p>{message}</p>
   <div class="row end">
-    <button type="button" onclick={() => respond(false)}>Vazgeç</button>
+    <button type="button" onclick={() => respond(false)}>{t("confirmDialog.cancel")}</button>
     <button type="button" class="primary danger-btn" onclick={() => respond(true)}>{confirmLabel}</button>
   </div>
 </dialog>

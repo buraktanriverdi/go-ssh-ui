@@ -2,6 +2,7 @@
   import type { Category, Host } from "../../bindings/go-ssh/config/models";
   import { ChevronRight, ChevronDown, Folder, Server, Plus, FolderPlus, Pencil, Trash2, FolderOpen } from "@lucide/svelte";
   import CategoryTree from "./CategoryTree.svelte";
+  import { t } from "../lib/i18n/i18n.svelte";
 
   let {
     category,
@@ -60,16 +61,16 @@
     <span class="category-name">{category.name}</span>
     {#if category.description}<span class="muted category-desc">{category.description}</span>{/if}
     <span class="spacer"></span>
-    <button type="button" class="icon-btn" onclick={(e) => { e.stopPropagation(); onAddHost(path); }} title="Host ekle">
+    <button type="button" class="icon-btn" onclick={(e) => { e.stopPropagation(); onAddHost(path); }} title={t("categoryTree.addHost")}>
       <Plus size={14} strokeWidth={2} />
     </button>
-    <button type="button" class="icon-btn" onclick={(e) => { e.stopPropagation(); onAddSubcategory(path); }} title="Alt kategori ekle">
+    <button type="button" class="icon-btn" onclick={(e) => { e.stopPropagation(); onAddSubcategory(path); }} title={t("categoryTree.addSubcategory")}>
       <FolderPlus size={14} strokeWidth={2} />
     </button>
-    <button type="button" class="icon-btn" onclick={(e) => { e.stopPropagation(); onEditCategory(path, category); }} title="Düzenle">
+    <button type="button" class="icon-btn" onclick={(e) => { e.stopPropagation(); onEditCategory(path, category); }} title={t("categoryTree.edit")}>
       <Pencil size={13} strokeWidth={2} />
     </button>
-    <button type="button" class="icon-btn danger" onclick={(e) => { e.stopPropagation(); onDeleteCategory(path, category); }} title="Sil">
+    <button type="button" class="icon-btn danger" onclick={(e) => { e.stopPropagation(); onDeleteCategory(path, category); }} title={t("categoryTree.delete")}>
       <Trash2 size={13} strokeWidth={2} />
     </button>
   </div>
@@ -107,13 +108,13 @@
           <span class="host-name">{host.name}</span>
           {#if host.description}<span class="muted">{host.description}</span>{/if}
           <span class="spacer"></span>
-          <button type="button" class="icon-btn files-btn" onclick={(e) => { e.stopPropagation(); onOpenFiles(path, host); }} title="Dosyalar">
+          <button type="button" class="icon-btn files-btn" onclick={(e) => { e.stopPropagation(); onOpenFiles(path, host); }} title={t("categoryTree.files")}>
             <FolderOpen size={13} strokeWidth={2} />
           </button>
-          <button type="button" class="icon-btn" onclick={(e) => { e.stopPropagation(); onEditHost(path, host); }} title="Düzenle">
+          <button type="button" class="icon-btn" onclick={(e) => { e.stopPropagation(); onEditHost(path, host); }} title={t("categoryTree.edit")}>
             <Pencil size={13} strokeWidth={2} />
           </button>
-          <button type="button" class="icon-btn danger" onclick={(e) => { e.stopPropagation(); onDeleteHost(path, host); }} title="Sil">
+          <button type="button" class="icon-btn danger" onclick={(e) => { e.stopPropagation(); onDeleteHost(path, host); }} title={t("categoryTree.delete")}>
             <Trash2 size={13} strokeWidth={2} />
           </button>
         </div>

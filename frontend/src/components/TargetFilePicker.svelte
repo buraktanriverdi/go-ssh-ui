@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Files } from "../../bindings/go-ssh-ui/internal/configx/models";
+  import { t } from "../lib/i18n/i18n.svelte";
 
   let { files, value = $bindable("") }: { files: Files; value: string } = $props();
 
@@ -23,18 +24,18 @@
 </script>
 
 <div class="field">
-  <label for="target-file">Hedef dosya</label>
+  <label for="target-file">{t("targetFilePicker.label")}</label>
   <select id="target-file" bind:value={selection} onchange={update}>
-    <option value={files.configPath}>config.yaml (ana dosya)</option>
+    <option value={files.configPath}>{t("targetFilePicker.mainFileOption")}</option>
     {#each files.confDFiles ?? [] as f (f)}
       <option value={f}>{f.split("/").pop()}</option>
     {/each}
-    <option value="__new__">Yeni dosya…</option>
+    <option value="__new__">{t("targetFilePicker.newFileOption")}</option>
   </select>
   {#if selection === "__new__"}
     <input
       type="text"
-      placeholder="ekip-adi.yaml"
+      placeholder={t("targetFilePicker.newFileNamePlaceholder")}
       bind:value={newFileName}
       oninput={update}
       style="margin-top: 6px"

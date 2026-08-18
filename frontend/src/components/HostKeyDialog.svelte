@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { TerminalService } from "../../bindings/go-ssh-ui";
   import type { Prompt } from "../../bindings/go-ssh-ui/internal/sshengine/models";
+  import { t } from "../lib/i18n/i18n.svelte";
 
   let { prompt, onDone }: { prompt: Prompt; onDone: () => void } = $props();
 
@@ -23,20 +24,19 @@
 </script>
 
 <dialog bind:this={dialog} class="glass-panel">
-  <h3>{prompt.isChanged ? "Host anahtarı değişti" : "Bilinmeyen host"}</h3>
+  <h3>{prompt.isChanged ? t("hostKeyDialog.changedTitle") : t("hostKeyDialog.unknownTitle")}</h3>
   <p class="mono">{prompt.hostname}</p>
   {#if prompt.isChanged}
     <p class="error-text">
-      Bu host için daha önce kaydedilen anahtar farklı. Bu meşru bir sunucu değişikliği olabilir, ama bir
-      araya-girme (MITM) saldırısının işareti de olabilir - emin değilsen reddet.
+      {t("hostKeyDialog.changedWarning")}
     </p>
   {:else}
-    <p class="muted">Bu hosta ilk kez bağlanıyorsun. Devam edersen anahtar ~/.ssh/known_hosts dosyana eklenecek.</p>
+    <p class="muted">{t("hostKeyDialog.firstConnectHint")}</p>
   {/if}
   <p class="mono key-line">{prompt.keyType} {prompt.fingerprint}</p>
   <div class="row end">
-    <button type="button" onclick={reject}>Reddet</button>
-    <button type="button" class={prompt.isChanged ? "danger" : "primary"} onclick={trust} disabled={busy}>Güven</button>
+    <button type="button" onclick={reject}>{t("hostKeyDialog.reject")}</button>
+    <button type="button" class={prompt.isChanged ? "danger" : "primary"} onclick={trust} disabled={busy}>{t("hostKeyDialog.trust")}</button>
   </div>
 </dialog>
 

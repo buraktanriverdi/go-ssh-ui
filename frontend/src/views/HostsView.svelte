@@ -9,6 +9,7 @@
   import CategoryForm from "../components/CategoryForm.svelte";
   import HostForm from "../components/HostForm.svelte";
   import ConfirmDialog from "../components/ConfirmDialog.svelte";
+  import { t } from "../lib/i18n/i18n.svelte";
 
   let {
     active = false,
@@ -181,7 +182,7 @@
   }
 
   async function deleteCategory(path: string[], category: Category) {
-    const ok = await confirmDialogRef.open(`"${category.name}" kategorisini (ve içindekileri) silmek istediğine emin misin?`);
+    const ok = await confirmDialogRef.open(t("hostsView.confirmDelete.category", { name: category.name }));
     if (!ok) return;
     try {
       const next = await HostService.DeleteCategory({ sourceFile: category.sourceFile ?? "", categoryPath: path });
@@ -192,7 +193,7 @@
   }
 
   async function deleteHost(path: string[], host: Host) {
-    const ok = await confirmDialogRef.open(`"${host.name}" hostunu silmek istediğine emin misin?`);
+    const ok = await confirmDialogRef.open(t("hostsView.confirmDelete.host", { name: host.name }));
     if (!ok) return;
     try {
       const next = await HostService.DeleteHost({ sourceFile: host.sourceFile ?? "", categoryPath: path, name: host.name });
@@ -207,16 +208,16 @@
   <div class="row end action-bar">
     <button type="button" class="primary" onclick={addRootCategory}>
       <FolderPlus size={14} strokeWidth={2} />
-      Kategori
+      {t("hostsView.buttons.addCategory")}
     </button>
   </div>
 
   {#if loadError}
     <p class="error-text">{loadError}</p>
   {:else if !cfg || !files}
-    <p class="muted">Yükleniyor…</p>
+    <p class="muted">{t("hostsView.loading")}</p>
   {:else if (cfg.categories ?? []).length === 0}
-    <p class="muted">Henüz kategori yok. Başlamak için "+ Kategori" ile bir tane oluştur.</p>
+    <p class="muted">{t("hostsView.emptyState")}</p>
   {:else}
     <div class="glass-panel tree-panel">
       {#each cfg.categories ?? [] as cat (cat.name)}

@@ -3,7 +3,9 @@ import './styles/glass.css'
 import App from './App.svelte'
 import { loadAppearance } from './lib/appearance.svelte'
 import { loadDefaultTerminalFontSize } from './lib/terminalZoom.svelte'
+import { loadLocale } from './lib/i18n/i18n.svelte'
 
+loadLocale()
 loadAppearance()
 loadDefaultTerminalFontSize()
 

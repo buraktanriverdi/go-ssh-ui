@@ -1,6 +1,7 @@
 <script lang="ts">
   import { PasswordService } from "../../bindings/go-ssh-ui";
   import { Lock } from "@lucide/svelte";
+  import { t } from "../lib/i18n/i18n.svelte";
 
   let { onUnlocked }: { onUnlocked: () => void } = $props();
 
@@ -20,11 +21,11 @@
     e.preventDefault();
     error = null;
     if (masterPassword.length < 8) {
-      error = "Ana şifre en az 8 karakter olmalı.";
+      error = t("unlockScreen.errors.tooShort");
       return;
     }
     if (masterPassword !== confirmPassword) {
-      error = "Şifreler eşleşmiyor.";
+      error = t("unlockScreen.errors.mismatch");
       return;
     }
     busy = true;
@@ -46,7 +47,7 @@
       await PasswordService.Unlock(masterPassword);
       onUnlocked();
     } catch (err) {
-      error = "Ana şifre yanlış.";
+      error = t("unlockScreen.errors.wrongPassword");
     } finally {
       busy = false;
     }
@@ -58,30 +59,30 @@
     <div class="unlock-badge"><Lock size={22} strokeWidth={1.75} /></div>
     <h1 class="unlock-title">go-ssh-ui</h1>
     {#if storeExists === null}
-      <p class="muted">Yükleniyor…</p>
+      <p class="muted">{t("unlockScreen.loading")}</p>
     {:else if storeExists === false}
-      <p class="muted">Henüz bir şifre deposu yok. Bir ana şifre oluştur - bu şifre ~/.go-ssh/passwords.enc dosyasını korur ve go-ssh CLI ile de paylaşılır.</p>
+      <p class="muted">{t("unlockScreen.createIntro")}</p>
       <form onsubmit={submitCreate}>
         <div class="field">
-          <label for="create-pw">Ana şifre (en az 8 karakter)</label>
+          <label for="create-pw">{t("unlockScreen.createPasswordLabel")}</label>
           <input id="create-pw" type="password" bind:value={masterPassword} autocomplete="new-password" />
         </div>
         <div class="field">
-          <label for="confirm-pw">Ana şifre (tekrar)</label>
+          <label for="confirm-pw">{t("unlockScreen.confirmPasswordLabel")}</label>
           <input id="confirm-pw" type="password" bind:value={confirmPassword} autocomplete="new-password" />
         </div>
         {#if error}<p class="error-text">{error}</p>{/if}
-        <button type="submit" class="primary" disabled={busy}>Oluştur ve Aç</button>
+        <button type="submit" class="primary" disabled={busy}>{t("unlockScreen.createSubmit")}</button>
       </form>
     {:else}
-      <p class="muted">Devam etmek için ana şifreni gir.</p>
+      <p class="muted">{t("unlockScreen.unlockIntro")}</p>
       <form onsubmit={submitUnlock}>
         <div class="field">
-          <label for="unlock-pw">Ana şifre</label>
+          <label for="unlock-pw">{t("unlockScreen.unlockPasswordLabel")}</label>
           <input id="unlock-pw" type="password" bind:value={masterPassword} autocomplete="current-password" autofocus />
         </div>
         {#if error}<p class="error-text">{error}</p>{/if}
-        <button type="submit" class="primary" disabled={busy}>Kilidi Aç</button>
+        <button type="submit" class="primary" disabled={busy}>{t("unlockScreen.unlockSubmit")}</button>
       </form>
     {/if}
   </div>

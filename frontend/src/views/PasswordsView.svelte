@@ -3,6 +3,7 @@
   import type { PasswordEntry } from "../../bindings/go-ssh/password/models";
   import { KeyRound, Eye, Pencil, Trash2, Copy, Plus } from "@lucide/svelte";
   import ConfirmDialog from "../components/ConfirmDialog.svelte";
+  import { t } from "../lib/i18n/i18n.svelte";
 
   let confirmDialogRef: ReturnType<typeof ConfirmDialog> = $state()!;
   let entries: PasswordEntry[] = $state([]);
@@ -75,7 +76,7 @@
   }
 
   async function remove(entry: PasswordEntry) {
-    const ok = await confirmDialogRef.open(`"${entry.id}" şifresini silmek istediğine emin misin?`);
+    const ok = await confirmDialogRef.open(t("passwordsView.confirmDelete", { id: entry.id }));
     if (!ok) return;
     entries = ((await PasswordService.Delete(entry.id)) ?? []).filter((e): e is PasswordEntry => e !== null);
   }
@@ -95,16 +96,16 @@
   <div class="row end action-bar">
     <button type="button" class="primary" onclick={openAdd}>
       <Plus size={14} strokeWidth={2} />
-      Şifre
+      {t("passwordsView.buttons.add")}
     </button>
   </div>
 
   {#if loadError}
     <p class="error-text">{loadError}</p>
   {:else if loading}
-    <p class="muted">Yükleniyor…</p>
+    <p class="muted">{t("passwordsView.loading")}</p>
   {:else if entries.length === 0}
-    <p class="muted">Henüz kayıtlı şifre yok.</p>
+    <p class="muted">{t("passwordsView.emptyState")}</p>
   {:else}
     <div class="glass-panel entry-list">
       {#each entries as entry (entry.id)}
@@ -115,13 +116,13 @@
             <div class="muted">{entry.description}</div>
           </div>
           <span class="spacer"></span>
-          <button type="button" class="icon-btn" onclick={() => reveal(entry)} title="Görüntüle">
+          <button type="button" class="icon-btn" onclick={() => reveal(entry)} title={t("passwordsView.actions.view")}>
             <Eye size={14} strokeWidth={2} />
           </button>
-          <button type="button" class="icon-btn" onclick={() => openEdit(entry)} title="Düzenle">
+          <button type="button" class="icon-btn" onclick={() => openEdit(entry)} title={t("passwordsView.actions.edit")}>
             <Pencil size={13} strokeWidth={2} />
           </button>
-          <button type="button" class="icon-btn danger" onclick={() => remove(entry)} title="Sil">
+          <button type="button" class="icon-btn danger" onclick={() => remove(entry)} title={t("passwordsView.actions.delete")}>
             <Trash2 size={13} strokeWidth={2} />
           </button>
         </div>
@@ -131,38 +132,38 @@
 </div>
 
 <dialog bind:this={editDialog} class="glass-panel">
-  <h3>{editingId === null ? "Şifre Ekle" : "Şifreyi Düzenle"}</h3>
+  <h3>{editingId === null ? t("passwordsView.dialog.addTitle") : t("passwordsView.dialog.editTitle")}</h3>
   <form onsubmit={submitForm}>
     <div class="field">
-      <label for="pw-id">Kimlik (id)</label>
-      <input id="pw-id" type="text" bind:value={formId} disabled={editingId !== null} placeholder="prod-db" required />
+      <label for="pw-id">{t("passwordsView.dialog.idLabel")}</label>
+      <input id="pw-id" type="text" bind:value={formId} disabled={editingId !== null} placeholder={t("passwordsView.dialog.idPlaceholder")} required />
     </div>
     <div class="field">
-      <label for="pw-desc">Açıklama</label>
+      <label for="pw-desc">{t("passwordsView.dialog.descriptionLabel")}</label>
       <input id="pw-desc" type="text" bind:value={formDescription} />
     </div>
     <div class="field">
-      <label for="pw-value">Şifre</label>
+      <label for="pw-value">{t("passwordsView.dialog.passwordLabel")}</label>
       <input id="pw-value" type="text" class="mono" bind:value={formPassword} required />
     </div>
     {#if formError}<p class="error-text">{formError}</p>{/if}
     <div class="row end">
-      <button type="button" onclick={() => editDialog.close()}>Vazgeç</button>
-      <button type="submit" class="primary" disabled={busy}>Kaydet</button>
+      <button type="button" onclick={() => editDialog.close()}>{t("passwordsView.dialog.cancelButton")}</button>
+      <button type="submit" class="primary" disabled={busy}>{t("passwordsView.dialog.saveButton")}</button>
     </div>
   </form>
 </dialog>
 
 <dialog bind:this={revealDialog} class="glass-panel">
-  <h3>Şifre</h3>
+  <h3>{t("passwordsView.revealDialog.title")}</h3>
   <p class="mono muted">{revealId}</p>
   <code class="reveal-box mono">{revealValue}</code>
   <div class="row end" style="margin-top: 16px">
     <button type="button" onclick={copyRevealed}>
       <Copy size={14} strokeWidth={2} />
-      Kopyala
+      {t("passwordsView.revealDialog.copyButton")}
     </button>
-    <button type="button" class="primary" onclick={() => revealDialog.close()}>Kapat</button>
+    <button type="button" class="primary" onclick={() => revealDialog.close()}>{t("passwordsView.revealDialog.closeButton")}</button>
   </div>
 </dialog>
 

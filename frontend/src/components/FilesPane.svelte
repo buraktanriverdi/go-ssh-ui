@@ -20,6 +20,7 @@
   import { FileService } from "../../bindings/go-ssh-ui";
   import type { Entry } from "../../bindings/go-ssh-ui/internal/scpfs/models";
   import ConfirmDialog from "./ConfirmDialog.svelte";
+  import { t } from "../lib/i18n/i18n.svelte";
 
   let { categoryPath, hostName }: { categoryPath: string[]; hostName: string } = $props();
 
@@ -178,7 +179,7 @@
   }
 
   async function deleteRemote(entry: Entry) {
-    const ok = await confirmDialogRef.open(`"${entry.name}" silinsin mi?`);
+    const ok = await confirmDialogRef.open(t("filesPane.rowActions.confirmDelete", { name: entry.name }));
     if (!ok) return;
     try {
       await FileService.Delete({ ...hostReq, target: remotePath(entry.name) });
@@ -226,14 +227,14 @@
   onMount(async () => {
     unsubs.push(
       Events.On("file:progress", (ev) => {
-        const t = transfers.get(ev.data.transferId);
-        if (t) transfers.set(ev.data.transferId, { ...t, done: ev.data.done, total: ev.data.total });
+        const transfer = transfers.get(ev.data.transferId);
+        if (transfer) transfers.set(ev.data.transferId, { ...transfer, done: ev.data.done, total: ev.data.total });
       }),
     );
     unsubs.push(
       Events.On("file:done", (ev) => {
-        const t = transfers.get(ev.data.transferId);
-        if (t) transfers.set(ev.data.transferId, { ...t, finished: true, error: ev.data.error });
+        const transfer = transfers.get(ev.data.transferId);
+        if (transfer) transfers.set(ev.data.transferId, { ...transfer, finished: true, error: ev.data.error });
         if (!ev.data.error) loadRemote();
         setTimeout(() => transfers.delete(ev.data.transferId), ev.data.error ? 6000 : 2500);
       }),
@@ -268,12 +269,12 @@
 </script>
 
 {#if canBrowse === null}
-  <div class="center-wrap"><span class="muted">Kontrol ediliyor…</span></div>
+  <div class="center-wrap"><span class="muted">{t("filesPane.checking")}</span></div>
 {:else if canBrowse === false}
   <div class="center-wrap">
     <div class="unsupported glass-panel">
-      <p>Bu host için dosya yöneticisi henüz desteklenmiyor.</p>
-      <p class="muted">Bu host çok adımlı bir bağlantı betiği kullanıyor. Önce bir terminal sekmesinden bağlan.</p>
+      <p>{t("filesPane.unsupported.title")}</p>
+      <p class="muted">{t("filesPane.unsupported.hint")}</p>
       {#if checkError}<p class="error-text">{checkError}</p>{/if}
     </div>
   </div>
@@ -282,12 +283,12 @@
     <section class="pane">
       <div class="pane-header">
         <HardDrive size={14} strokeWidth={2} />
-        <span class="pane-title">Yerel</span>
+        <span class="pane-title">{t("filesPane.local.paneTitle")}</span>
         <span class="spacer"></span>
-        <button type="button" class="icon-btn" onclick={localUp} title="Üst dizin" disabled={localSegments().length === 0}>
+        <button type="button" class="icon-btn" onclick={localUp} title={t("filesPane.toolbar.parentDir")} disabled={localSegments().length === 0}>
           <ArrowUp size={14} strokeWidth={2} />
         </button>
-        <button type="button" class="icon-btn" onclick={loadLocal} title="Yenile">
+        <button type="button" class="icon-btn" onclick={loadLocal} title={t("filesPane.toolbar.refresh")}>
           <RefreshCw size={14} strokeWidth={2} />
         </button>
       </div>
@@ -300,7 +301,7 @@
       </div>
       <div class="list">
         {#if localLoading}
-          <p class="muted list-msg">Yükleniyor…</p>
+          <p class="muted list-msg">{t("filesPane.list.loading")}</p>
         {:else if localError}
           <p class="error-text list-msg">{localError}</p>
         {:else}
@@ -325,7 +326,7 @@
       <div class="pane-footer">
         <button type="button" onclick={uploadSelected} disabled={!selectedLocal} class="primary">
           <Upload size={13} strokeWidth={2} />
-          Yükle
+          {t("filesPane.local.uploadButton")}
         </button>
       </div>
     </section>
@@ -333,15 +334,15 @@
     <section class="pane">
       <div class="pane-header">
         <Server size={14} strokeWidth={2} />
-        <span class="pane-title">Uzak · {hostName}</span>
+        <span class="pane-title">{t("filesPane.remote.paneTitle", { name: hostName })}</span>
         <span class="spacer"></span>
-        <button type="button" class="icon-btn" onclick={openMkdir} title="Yeni klasör">
+        <button type="button" class="icon-btn" onclick={openMkdir} title={t("filesPane.toolbar.newFolder")}>
           <FolderPlus size={14} strokeWidth={2} />
         </button>
-        <button type="button" class="icon-btn" onclick={remoteUp} title="Üst dizin" disabled={remoteSegs.length === 0}>
+        <button type="button" class="icon-btn" onclick={remoteUp} title={t("filesPane.toolbar.parentDir")} disabled={remoteSegs.length === 0}>
           <ArrowUp size={14} strokeWidth={2} />
         </button>
-        <button type="button" class="icon-btn" onclick={loadRemote} title="Yenile">
+        <button type="button" class="icon-btn" onclick={loadRemote} title={t("filesPane.toolbar.refresh")}>
           <RefreshCw size={14} strokeWidth={2} />
         </button>
       </div>
@@ -360,11 +361,11 @@
         ondragleave={() => (dropActive = false)}
       >
         {#if remoteLoading}
-          <p class="muted list-msg">Yükleniyor…</p>
+          <p class="muted list-msg">{t("filesPane.list.loading")}</p>
         {:else if remoteError}
           <p class="error-text list-msg">{remoteError}</p>
         {:else if remoteEntries.length === 0}
-          <p class="muted list-msg">Klasör boş. Finder'dan dosya sürükleyip bırakabilirsin.</p>
+          <p class="muted list-msg">{t("filesPane.remote.emptyHint")}</p>
         {:else}
           {#each remoteEntries as entry (entry.name)}
             <div
@@ -388,19 +389,19 @@
                     type="button"
                     class="icon-btn"
                     onclick={(e) => { e.stopPropagation(); downloadRemote(entry); }}
-                    title="İndir"
+                    title={t("filesPane.rowActions.download")}
                   >
                     <Download size={13} strokeWidth={2} />
                   </button>
                 {/if}
-                <button type="button" class="icon-btn" onclick={(e) => { e.stopPropagation(); openRename(entry); }} title="Yeniden adlandır">
+                <button type="button" class="icon-btn" onclick={(e) => { e.stopPropagation(); openRename(entry); }} title={t("filesPane.rowActions.rename")}>
                   <Pencil size={13} strokeWidth={2} />
                 </button>
                 <button
                   type="button"
                   class="icon-btn danger"
                   onclick={(e) => { e.stopPropagation(); deleteRemote(entry); }}
-                  title="Sil"
+                  title={t("filesPane.rowActions.delete")}
                 >
                   <Trash2 size={13} strokeWidth={2} />
                 </button>
@@ -412,25 +413,25 @@
       <div class="pane-footer">
         <button type="button" onclick={pickAndUpload}>
           <FolderOpen size={13} strokeWidth={2} />
-          Dosya seç ve yükle
+          {t("filesPane.remote.pickAndUploadButton")}
         </button>
       </div>
     </section>
 
     {#if transfers.size > 0}
       <div class="transfers glass-panel">
-        {#each [...transfers.entries()] as [id, t] (id)}
+        {#each [...transfers.entries()] as [id, transfer] (id)}
           <div class="transfer-row">
-            <span class="transfer-name">{t.name}</span>
-            {#if t.error}
-              <span class="error-text">{t.error}</span>
-            {:else if t.finished}
-              <span class="muted">Tamamlandı</span>
+            <span class="transfer-name">{transfer.name}</span>
+            {#if transfer.error}
+              <span class="error-text">{transfer.error}</span>
+            {:else if transfer.finished}
+              <span class="muted">{t("filesPane.transfers.completed")}</span>
             {:else}
               <div class="transfer-bar">
-                <div class="transfer-bar-fill" style:width="{t.total ? (t.done / t.total) * 100 : 0}%"></div>
+                <div class="transfer-bar-fill" style:width="{transfer.total ? (transfer.done / transfer.total) * 100 : 0}%"></div>
               </div>
-              <span class="muted transfer-pct">{t.total ? Math.round((t.done / t.total) * 100) : 0}%</span>
+              <span class="muted transfer-pct">{transfer.total ? Math.round((transfer.done / transfer.total) * 100) : 0}%</span>
             {/if}
           </div>
         {/each}
@@ -440,29 +441,29 @@
 {/if}
 
 <dialog bind:this={mkdirDialog} class="glass-panel">
-  <h3>Yeni Klasör</h3>
+  <h3>{t("filesPane.mkdirDialog.title")}</h3>
   <form onsubmit={submitMkdir}>
     <div class="field">
-      <label for="mkdir-name">Ad</label>
+      <label for="mkdir-name">{t("filesPane.mkdirDialog.nameLabel")}</label>
       <input id="mkdir-name" type="text" bind:value={mkdirName} required autofocus />
     </div>
     <div class="row end">
-      <button type="button" onclick={() => mkdirDialog.close()}>Vazgeç</button>
-      <button type="submit" class="primary">Oluştur</button>
+      <button type="button" onclick={() => mkdirDialog.close()}>{t("filesPane.mkdirDialog.cancel")}</button>
+      <button type="submit" class="primary">{t("filesPane.mkdirDialog.create")}</button>
     </div>
   </form>
 </dialog>
 
 <dialog bind:this={renameDialog} class="glass-panel">
-  <h3>Yeniden Adlandır</h3>
+  <h3>{t("filesPane.renameDialog.title")}</h3>
   <form onsubmit={submitRename}>
     <div class="field">
-      <label for="rename-name">Ad</label>
+      <label for="rename-name">{t("filesPane.renameDialog.nameLabel")}</label>
       <input id="rename-name" type="text" bind:value={renameValue} required autofocus />
     </div>
     <div class="row end">
-      <button type="button" onclick={() => renameDialog.close()}>Vazgeç</button>
-      <button type="submit" class="primary">Kaydet</button>
+      <button type="button" onclick={() => renameDialog.close()}>{t("filesPane.renameDialog.cancel")}</button>
+      <button type="submit" class="primary">{t("filesPane.renameDialog.save")}</button>
     </div>
   </form>
 </dialog>

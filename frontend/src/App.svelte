@@ -6,6 +6,7 @@
   import { Server, KeyRound, Lock, Menu, Home, X, Megaphone, FolderOpen, Settings, SquareTerminal, Plus } from "@lucide/svelte";
   import { SvelteSet } from "svelte/reactivity";
   import type { Host } from "../bindings/go-ssh/config/models";
+  import { t } from "./lib/i18n/i18n.svelte";
   import UnlockScreen from "./views/UnlockScreen.svelte";
   import HostsView from "./views/HostsView.svelte";
   import PasswordsView from "./views/PasswordsView.svelte";
@@ -264,7 +265,7 @@
 
 {#if unlocked === null}
   <div class="boot-wrap">
-    <p class="muted">Yükleniyor…</p>
+    <p class="muted">{t("app.loading")}</p>
   </div>
 {:else if unlocked === false}
   <UnlockScreen onUnlocked={() => (unlocked = true)} />
@@ -284,7 +285,7 @@
         <div class="tab-strip">
           <button type="button" class="tab {activeTabId === 'home' ? 'active' : ''}" onclick={() => (activeTabId = "home")}>
             <Home size={13} strokeWidth={2} />
-            <span>Başlangıç</span>
+            <span>{t("app.home")}</span>
           </button>
           {#each terminalTabs as tab (tab.id)}
             <div class="tab {activeTabId === tab.id ? 'active' : ''}">
@@ -292,7 +293,7 @@
                 <span class="status-dot status-{tab.status}"></span>
                 <span>{tab.host.name}</span>
               </button>
-              <button type="button" class="icon-btn tab-close" onclick={() => closeTab(tab.id)} title="Kapat">
+              <button type="button" class="icon-btn tab-close" onclick={() => closeTab(tab.id)} title={t("app.close")}>
                 <X size={12} strokeWidth={2} />
               </button>
             </div>
@@ -303,7 +304,7 @@
                 <FolderOpen size={12} strokeWidth={2} />
                 <span>{tab.host.name}</span>
               </button>
-              <button type="button" class="icon-btn tab-close" onclick={() => closeTab(tab.id)} title="Kapat">
+              <button type="button" class="icon-btn tab-close" onclick={() => closeTab(tab.id)} title={t("app.close")}>
                 <X size={12} strokeWidth={2} />
               </button>
             </div>
@@ -312,15 +313,15 @@
             <div class="tab {activeTabId === tab.id ? 'active' : ''}">
               <button type="button" class="tab-select" onclick={() => (activeTabId = tab.id)}>
                 <SquareTerminal size={12} strokeWidth={2} />
-                <span>Terminal</span>
+                <span>{t("app.terminalTabLabel")}</span>
               </button>
-              <button type="button" class="icon-btn tab-close" onclick={() => closeTab(tab.id)} title="Kapat">
+              <button type="button" class="icon-btn tab-close" onclick={() => closeTab(tab.id)} title={t("app.close")}>
                 <X size={12} strokeWidth={2} />
               </button>
             </div>
           {/each}
         </div>
-        <button type="button" class="icon-btn new-terminal-btn" onclick={openLocalTerminal} title="Yeni terminal (bash/zsh)">
+        <button type="button" class="icon-btn new-terminal-btn" onclick={openLocalTerminal} title={t("app.newTerminalTooltip")}>
           <Plus size={15} strokeWidth={2} />
         </button>
         {#if terminalTabs.length > 0}
@@ -328,7 +329,7 @@
             type="button"
             class="icon-btn broadcast-toggle {broadcastOpen ? 'active' : ''}"
             onclick={toggleBroadcast}
-            title="Toplu komut"
+            title={t("app.broadcastTooltip")}
           >
             <Megaphone size={15} strokeWidth={2} />
           </button>
@@ -348,7 +349,7 @@
     {#if !hotkeyMode}
       <nav class="sidebar chrome chrome-border-right">
         <div class="sidebar-header">
-          <button type="button" class="icon-btn hamburger-btn" onclick={() => (sidebarCollapsed = !sidebarCollapsed)} title="Kenar çubuğu">
+          <button type="button" class="icon-btn hamburger-btn" onclick={() => (sidebarCollapsed = !sidebarCollapsed)} title={t("app.sidebarToggleTooltip")}>
             <Menu size={16} strokeWidth={2} />
           </button>
           {#if !sidebarCollapsed}
@@ -363,7 +364,7 @@
               onclick={() => selectNav("hosts")}
             >
               <Server size={15} strokeWidth={2} />
-              <span>Hostlar</span>
+              <span>{t("app.nav.hosts")}</span>
             </button>
             <button
               type="button"
@@ -371,7 +372,7 @@
               onclick={() => selectNav("passwords")}
             >
               <KeyRound size={15} strokeWidth={2} />
-              <span>Şifreler</span>
+              <span>{t("app.nav.passwords")}</span>
             </button>
           </div>
           <div class="spacer"></div>
@@ -381,11 +382,11 @@
             onclick={() => selectNav("settings")}
           >
             <Settings size={15} strokeWidth={2} />
-            <span>Ayarlar</span>
+            <span>{t("app.nav.settings")}</span>
           </button>
           <button type="button" class="list-row nav-row" onclick={lock}>
             <Lock size={15} strokeWidth={2} />
-            <span>Kilitle</span>
+            <span>{t("app.nav.lock")}</span>
           </button>
         {/if}
       </nav>
@@ -432,7 +433,7 @@
     {#if broadcastOpen && terminalTabs.length > 0}
       <div class="broadcast-bar chrome chrome-border-top">
         <div class="broadcast-targets">
-          <span class="muted broadcast-label">Hedef:</span>
+          <span class="muted broadcast-label">{t("app.broadcast.targetLabel")}</span>
           {#each terminalTabs as tab (tab.id)}
             <button
               type="button"
@@ -444,8 +445,8 @@
           {/each}
         </div>
         <form class="broadcast-input-row" onsubmit={sendBroadcast}>
-          <input type="text" placeholder="Seçili sekmelere komut gönder…" bind:value={broadcastText} />
-          <button type="submit" class="primary" disabled={broadcastTargets.size === 0 || !broadcastText}>Gönder</button>
+          <input type="text" placeholder={t("app.broadcast.placeholder")} bind:value={broadcastText} />
+          <button type="submit" class="primary" disabled={broadcastTargets.size === 0 || !broadcastText}>{t("app.broadcast.send")}</button>
         </form>
       </div>
     {/if}
