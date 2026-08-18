@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy } from "svelte";
+  import { onDestroy, tick } from "svelte";
   import { HostService } from "../../bindings/go-ssh-ui";
   import type { Config, Category, Host } from "../../bindings/go-ssh/config/models";
   import type { Files } from "../../bindings/go-ssh-ui/internal/configx/models";
@@ -51,24 +51,50 @@
     return out;
   }
 
-  // Keyboard navigation (arrow keys select, space/return connects) only
-  // among currently-visible hosts - i.e. whatever's on screen right now,
-  // matching `expanded` exactly the way the tree itself renders it, rather
-  // than silently walking into collapsed categories the user hasn't opened.
-  type VisibleHost = { path: string[]; host: Host };
-  function visibleHostEntries(categories: Category[] | null | undefined, path: string[] = []): VisibleHost[] {
-    const out: VisibleHost[] = [];
+  // Keyboard tree navigation: Up/Down move across whatever rows are
+  // currently on screen (categories *and* hosts) - a collapsed category is
+  // one stop you arrow past, not a doorway that silently opens as you go by.
+  // Right/Left are the actual open/close controls, mirroring a standard
+  // treeview: Right opens the selected (collapsed) category; Left closes an
+  // open one, or - once already closed, or on a host - steps up to the
+  // parent category instead. Space/Return only ever connects a host.
+  type TreeRow = { kind: "category"; path: string[]; category: Category } | { kind: "host"; path: string[]; host: Host };
+
+  function rowKey(row: TreeRow): string {
+    return row.kind === "category" ? row.path.join("/") : [...row.path, row.host.name].join("/");
+  }
+
+  // Order matches the tree's own render order (CategoryTree renders a
+  // category's subcategories before its own direct hosts), so top-to-bottom
+  // on screen matches Down-arrow order.
+  function visibleRows(categories: Category[] | null | undefined, path: string[] = []): TreeRow[] {
+    const out: TreeRow[] = [];
     for (const cat of categories ?? []) {
       const catPath = [...path, cat.name];
-      if (!expanded.has(catPath.join("/"))) continue;
-      for (const h of cat.hosts ?? []) out.push({ path: catPath, host: h });
-      out.push(...visibleHostEntries(cat.categories, catPath));
+      out.push({ kind: "category", path: catPath, category: cat });
+      if (expanded.has(catPath.join("/"))) {
+        out.push(...visibleRows(cat.categories, catPath));
+        for (const h of cat.hosts ?? []) out.push({ kind: "host", path: catPath, host: h });
+      }
     }
     return out;
   }
 
-  let selectedHostId: string | null = $state(null);
-  let visibleHosts = $derived.by(() => visibleHostEntries(cfg?.categories));
+  function parentRowOf(row: TreeRow, list: TreeRow[]): TreeRow | undefined {
+    const parentPath = row.kind === "host" ? row.path : row.path.slice(0, -1);
+    if (parentPath.length === 0) return undefined;
+    const parentKey = parentPath.join("/");
+    return list.find((r) => r.kind === "category" && rowKey(r) === parentKey);
+  }
+
+  let selectedRowKey: string | null = $state(null);
+  let rows = $derived.by(() => visibleRows(cfg?.categories));
+
+  async function selectRow(row: TreeRow) {
+    selectedRowKey = rowKey(row);
+    await tick();
+    document.querySelector(`[data-row-key="${CSS.escape(selectedRowKey)}"]`)?.scrollIntoView({ block: "nearest" });
+  }
 
   function handleTreeKeydown(e: KeyboardEvent) {
     if (!active || e.metaKey || e.ctrlKey || e.altKey) return;
@@ -80,22 +106,41 @@
     if (document.querySelector("dialog[open]")) return;
     const target = document.activeElement;
     if (target instanceof HTMLElement && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
-    const list = visibleHosts;
+    // A focused <button> (add-category, edit/delete/files icons, ...) or a
+    // category/host row (both role="button") already does its own thing on
+    // Space/Enter - don't also fire onConnectHost for a stale selection.
+    if ((e.key === " " || e.key === "Enter") && target instanceof HTMLElement && (target.tagName === "BUTTON" || target.getAttribute("role") === "button")) {
+      return;
+    }
+    const list = rows;
+    const idx = list.findIndex((r) => rowKey(r) === selectedRowKey);
+    const current = idx >= 0 ? list[idx] : null;
+
     if (e.key === "ArrowDown") {
       e.preventDefault();
       if (list.length === 0) return;
-      const idx = list.findIndex((v) => v.host.id === selectedHostId);
-      selectedHostId = list[Math.min(idx + 1, list.length - 1)].host.id!;
+      selectRow(list[Math.min(idx + 1, list.length - 1)]);
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       if (list.length === 0) return;
-      const idx = list.findIndex((v) => v.host.id === selectedHostId);
-      selectedHostId = list[Math.max(idx - 1, 0)].host.id!;
+      selectRow(list[Math.max(idx - 1, 0)]);
+    } else if (e.key === "ArrowRight") {
+      if (!current || current.kind !== "category") return;
+      e.preventDefault();
+      expanded.add(current.path.join("/"));
+    } else if (e.key === "ArrowLeft") {
+      if (!current) return;
+      e.preventDefault();
+      if (current.kind === "category" && expanded.has(current.path.join("/"))) {
+        expanded.delete(current.path.join("/"));
+      } else {
+        const parent = parentRowOf(current, list);
+        if (parent) selectRow(parent);
+      }
     } else if (e.key === " " || e.key === "Enter") {
-      const entry = list.find((v) => v.host.id === selectedHostId);
-      if (entry) {
+      if (current?.kind === "host") {
         e.preventDefault();
-        onConnectHost(entry.path, entry.host);
+        onConnectHost(current.path, current.host);
       }
     }
   }
@@ -179,7 +224,7 @@
           category={cat}
           path={[cat.name]}
           {expanded}
-          {selectedHostId}
+          {selectedRowKey}
           onAddSubcategory={(p) => categoryFormRef.openAdd(p)}
           onEditCategory={(p, c) => categoryFormRef.openEdit(p, c)}
           onDeleteCategory={deleteCategory}

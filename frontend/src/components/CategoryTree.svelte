@@ -7,7 +7,7 @@
     category,
     path,
     expanded,
-    selectedHostId = null,
+    selectedRowKey = null,
     onAddSubcategory,
     onEditCategory,
     onDeleteCategory,
@@ -20,7 +20,12 @@
     category: Category;
     path: string[];
     expanded: Set<string>;
-    selectedHostId?: string | null;
+    // A category row's key is its own path.join("/") (same string `expanded`
+    // keys on); a host row's is path+name, not host.id - hosts defined via
+    // the CLI's config files (rather than this GUI) commonly have no id at
+    // all (see the Host model: "assigned by GUI editors; unused by the
+    // CLI"), so an id-keyed selection would silently never highlight those.
+    selectedRowKey?: string | null;
     onAddSubcategory: (path: string[]) => void;
     onEditCategory: (path: string[], category: Category) => void;
     onDeleteCategory: (path: string[], category: Category) => void;
@@ -39,7 +44,15 @@
 </script>
 
 <div class="category-node">
-  <div class="list-row category-row" onclick={toggle} role="button" tabindex="0" onkeydown={(e) => e.key === "Enter" && toggle()}>
+  <div
+    class="list-row category-row"
+    class:selected={key === selectedRowKey}
+    data-row-key={key}
+    onclick={toggle}
+    role="button"
+    tabindex="0"
+    onkeydown={(e) => e.key === "Enter" && toggle()}
+  >
     <span class="chevron">
       {#if expanded.has(key)}<ChevronDown size={13} strokeWidth={2.5} />{:else}<ChevronRight size={13} strokeWidth={2.5} />{/if}
     </span>
@@ -68,7 +81,7 @@
           category={sub}
           path={[...path, sub.name]}
           {expanded}
-          {selectedHostId}
+          {selectedRowKey}
           {onAddSubcategory}
           {onEditCategory}
           {onDeleteCategory}
@@ -82,7 +95,8 @@
       {#each category.hosts ?? [] as host (host.name)}
         <div
           class="list-row host-row"
-          class:selected={!!host.id && host.id === selectedHostId}
+          class:selected={[...path, host.name].join("/") === selectedRowKey}
+          data-row-key={[...path, host.name].join("/")}
           onclick={() => onConnectHost(path, host)}
           role="button"
           tabindex="0"
