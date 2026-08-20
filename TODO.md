@@ -1,10 +1,10 @@
 - Sekme isimlendirme gruplandırma
 - Hotkey window yatay dikey bölme kısayolu
-- Sekme yönetimi için kısayol
-- Punto büyütmr küçültme (kısayol)
+- Punto büyütmr küçültme zoom in touchpad
 - Uygulamayı kapatınca status bar da çıkması ve hotkey windowun hala çalışması
-- dmg build alıp relese çıkma
-- Herhangi bir komut için de makro kaydedilmeli
-- ilk açılış sayfası popup şeklinde tutorial olsun.
-- Yeni terminal + botonu biraz küçük belli olmuyor
+- Herhangi bir komut için de makro kaydedilmeli (kayıt yapıldığında sadece host değil her komutlar kaydedilmeli ilk komut echo falansa kaydetmiyor)
+- ilk açılış sayfası popup şeklinde tutorial olsun. Host oluşturmayı vs anlatsın.
+- Hotkey ekran açılınca ufak bir şekilde ortada falan 5sn kısayolları ufak bir yazı ile göstersin.
+- Yeni terminal açmak için kullanılan + botonu biraz küçük belli olmuyor. Arka plan ekle renkli olsun.
 - uygulamada ana sayfada hamburger menü kapalıyken üstde çıkan home butonunun solundaki boşluk gereksiz fazla kalıyor.
+- çoklu komut gönderme normal terminallerde de gelsin sadece listeden açılan hostlara geliyor. 
