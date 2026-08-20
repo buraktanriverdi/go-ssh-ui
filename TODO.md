@@ -4,3 +4,7 @@
 - Punto büyütmr küçültme (kısayol)
 - Uygulamayı kapatınca status bar da çıkması ve hotkey windowun hala çalışması
 - dmg build alıp relese çıkma
+- Herhangi bir komut için de makro kaydedilmeli
+- ilk açılış sayfası popup şeklinde tutorial olsun.
+- Yeni terminal + botonu biraz küçük belli olmuyor
+- uygulamada ana sayfada hamburger menü kapalıyken üstde çıkan home butonunun solundaki boşluk gereksiz fazla kalıyor.

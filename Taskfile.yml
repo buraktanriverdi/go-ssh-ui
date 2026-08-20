@@ -29,6 +29,14 @@ tasks:
     cmds:
       - task: "{{.GOOS}}:package"
 
+  package:dmg:
+    summary: Packages a production build of the application into a macOS .dmg
+    preconditions:
+      - sh: '[ "{{.GOOS}}" = "darwin" ]'
+        msg: "package:dmg is macOS-only (GOOS={{.GOOS}})"
+    cmds:
+      - task: "darwin:package:dmg"
+
   run:
     summary: Runs the application
     cmds:

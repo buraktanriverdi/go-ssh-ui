@@ -4,6 +4,7 @@
 # through, e.g.:
 #   ./build.sh                  # task build
 #   ./build.sh package          # task package
+#   ./build.sh package:dmg      # build a macOS .dmg installer (darwin only)
 #   ./build.sh build:server     # headless server build
 #   GOOS=windows ./build.sh     # cross-compile
 set -euo pipefail
